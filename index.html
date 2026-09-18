@@ -1,0 +1,2906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Business Card Scanner</title>
+<style>
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:       #0f1117;
+  --surface:  #1a1d27;
+  --surface2: #22263a;
+  --border:   #2e3354;
+  --accent:   #4f8ef7;
+  --success:  #22c55e;
+  --warn:     #f59e0b;
+  --danger:   #ef4444;
+  --text:     #e2e8f0;
+  --muted:    #6b7280;
+  --radius:   12px;
+  --shadow:   0 4px 24px rgba(0,0,0,.45);
+}
+html { font-size: 15px; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh; padding: 0 0 80px;
+}
+
+/* ── Header ── */
+.header {
+  background: linear-gradient(135deg,#1a1d27 0%,#12152a 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px; display: flex; align-items: center; gap: 16px;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 16px rgba(0,0,0,.5);
+}
+.header-logo { font-size: 26px; }
+.header-title h1 { font-size: 1.1rem; font-weight: 700; color: #fff; line-height: 1.2; }
+.header-title p  { font-size: .72rem; color: var(--muted); }
+.header-actions  { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+/* ── API Key Bar ── */
+.api-bar {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 8px 24px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.api-bar label { font-size: .78rem; color: var(--muted); white-space: nowrap; }
+.api-bar input {
+  flex: 1; min-width: 200px; max-width: 440px;
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 6px 12px; font-size: .82rem; font-family: monospace; outline: none;
+  transition: border-color .2s;
+}
+.api-bar input:focus { border-color: var(--accent); }
+.api-status { font-size: .75rem; padding: 3px 9px; border-radius: 20px; font-weight: 600; }
+.api-status.ok  { background: rgba(34,197,94,.15); color: var(--success); }
+.api-status.bad { background: rgba(239,68,68,.15);  color: var(--danger); }
+
+/* ── Layout ── */
+.main { max-width: 1280px; margin: 0 auto; padding: 18px 18px; display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; }
+@media (max-width: 900px) { .main { grid-template-columns: 1fr; } }
+
+/* ── Panel ── */
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+.panel-title { font-size: .82rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+
+/* ── Tabs ── */
+.tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.tab-btn { flex: 1; padding: 7px 4px; font-size: .8rem; font-weight: 600; background: none; border: none; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* ── Camera ── */
+.camera-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 10px; overflow: hidden; border: 2px solid var(--border); }
+#videoEl { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-overlay { position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+.cam-guide { width: 80%; height: 60%; border: 2.5px dashed rgba(79,142,247,.7); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); }
+.cam-label { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.65); color: rgba(255,255,255,.8); font-size: .7rem; padding: 2px 10px; border-radius: 20px; backdrop-filter: blur(4px); pointer-events: none; }
+#capturedPreview { width: 100%; border-radius: 10px; border: 2px solid var(--border); display: none; margin-top: 8px; max-height: 200px; object-fit: contain; background: #000; }
+.cam-controls { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ── Upload ── */
+.upload-zone { border: 2px dashed var(--border); border-radius: 10px; min-height: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all .2s; padding: 16px; text-align: center; }
+.upload-zone:hover,.upload-zone.drag { border-color: var(--accent); background: rgba(79,142,247,.06); }
+.upload-zone .upload-icon { font-size: 2rem; }
+.upload-zone p { font-size: .82rem; color: var(--muted); }
+.upload-zone strong { color: var(--accent); }
+#uploadInput { display: none; }
+#uploadPreview { width: 100%; border-radius: 10px; border: 2px solid var(--border); display: none; margin-top: 8px; max-height: 180px; object-fit: contain; background: #000; }
+
+/* ── Buttons ── */
+.btn { padding: 8px 16px; border-radius: 8px; border: none; font-size: .82rem; font-weight: 600; cursor: pointer; transition: all .18s; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-primary { background: var(--accent);  color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #3b79f5; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover:not(:disabled) { background: #16a34a; }
+.btn-warn    { background: var(--warn);    color: #000; }
+.btn-warn:hover:not(:disabled)    { background: #d97706; }
+.btn-danger  { background: var(--danger);  color: #fff; }
+.btn-danger:hover:not(:disabled)  { background: #dc2626; }
+.btn-ghost   { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover:not(:disabled)   { background: var(--border); }
+.btn-sm { padding: 6px 12px; font-size: .78rem; }
+.btn-xs { padding: 4px 8px;  font-size: .7rem; }
+
+/* ── Spinner ── */
+.spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.25); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Review Form ── */
+.review-panel { overflow-y: auto; max-height: calc(100vh - 120px); }
+.review-placeholder { text-align: center; padding: 20px; color: var(--muted); }
+.review-placeholder .icon { font-size: 2rem; margin-bottom: 8px; }
+.review-placeholder p { font-size: .85rem; }
+
+.form-section-title {
+  font-size: .72rem; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: .08em;
+  margin: 12px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border);
+}
+.form-section-title:first-of-type { margin-top: 0; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group.full { grid-column: 1 / -1; }
+.form-group label { font-size: .7rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+
+.form-group input:not([type="checkbox"]),
+.form-group textarea,
+.form-group select {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 7px 10px; font-size: .84rem; font-family: inherit; outline: none;
+  transition: border-color .2s; width: 100%;
+}
+/* Checkboxes should never inherit full-width or input styling */
+.form-group input[type="checkbox"] {
+  width: auto; padding: 0; border: none; background: transparent;
+  border-radius: 0; box-shadow: none;
+}
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus { border-color: var(--accent); }
+.form-group textarea { min-height: 60px; resize: vertical; }
+.form-group select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+.form-group select option { background: #1a1d27; }
+
+/* ── Multi-Select ── */
+.ms-wrap { position: relative; }
+.ms-display {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px; cursor: pointer; display: flex; justify-content: space-between;
+  align-items: center; font-size: .84rem; min-height: 36px; user-select: none;
+  transition: border-color .2s;
+}
+.ms-display:hover, .ms-display.open { border-color: var(--accent); }
+.ms-text { color: var(--text); flex: 1; }
+.ms-text.ph { color: var(--muted); }
+.ms-arrow { color: var(--muted); font-size: .7rem; margin-left: 6px; transition: transform .2s; }
+.ms-arrow.rot { transform: rotate(180deg); }
+.ms-dropdown {
+  position: absolute; top: calc(100% + 3px); left: 0; right: 0;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  z-index: 300; max-height: 200px; overflow-y: auto; box-shadow: var(--shadow); display: none;
+}
+.ms-dropdown.open { display: block; }
+/* Override .form-group label inheritance for multiselect options */
+.ms-opt,
+.form-group .ms-opt {
+  display: flex !important; align-items: center; gap: 8px; padding: 7px 10px;
+  cursor: pointer; font-size: .84rem !important; transition: background .15s;
+  color: var(--text) !important; text-transform: none !important;
+  letter-spacing: normal !important; font-weight: 400 !important;
+  border-bottom: none !important; margin-bottom: 0 !important;
+}
+.ms-opt:hover { background: rgba(79,142,247,.1); }
+.ms-opt span { color: var(--text) !important; text-transform: none; font-weight: 400; }
+.ms-opt input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+
+/* ── Checkbox Group (Action Required) ── */
+.check-group {
+  display: flex; flex-direction: row; flex-wrap: wrap; gap: 12px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+}
+.check-item {
+  display: flex; align-items: center; gap: 7px; cursor: pointer; font-size: .82rem;
+  color: var(--text); text-transform: none; letter-spacing: normal; font-weight: 400;
+}
+.check-item input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+
+/* ── Dup Warning ── */
+.dup-warn { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.4); border-radius: 8px; padding: 8px 12px; font-size: .8rem; color: var(--warn); margin-bottom: 10px; display: none; }
+.dup-warn.show { display: block; }
+
+.review-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+
+/* ── Records Table ── */
+.records-section { grid-column: 1 / -1; }
+.records-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.records-header h2 { font-size: .95rem; font-weight: 700; flex: 1; }
+.badge { background: var(--accent); color: #fff; font-size: .7rem; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
+.table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+thead th { background: var(--surface2); color: var(--muted); text-align: left; padding: 8px 10px; font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; border-bottom: 1px solid var(--border); white-space: nowrap; }
+tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--surface2); }
+tbody td { padding: 8px 10px; vertical-align: middle; }
+.td-name { font-weight: 600; color: #fff; }
+.td-sub { color: var(--muted); font-size: .72rem; }
+.td-badge { background: rgba(79,142,247,.15); color: var(--accent); font-size: .67rem; padding: 2px 6px; border-radius: 20px; display: inline-block; }
+.empty-state { text-align: center; padding: 16px; color: var(--muted); font-size: .85rem; }
+
+/* ── Toast (Highest Z-Index to always stay in front) ── */
+#toastContainer { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 999999; pointer-events: none; }
+.toast { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 11px 18px; border-radius: 10px; font-size: .84rem; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 10px; animation: slideIn .25s ease; max-width: 360px; pointer-events: auto; backdrop-filter: blur(8px); }
+.toast.success { border-color: var(--success); background: #13271f; color: #6ee7b7; }
+.toast.error   { border-color: var(--danger); background: #2d1416; color: #fca5a5; }
+.toast.warn    { border-color: var(--warn); background: #2d2210; color: #fcd34d; }
+.toast.info    { border-color: var(--accent); background: #131d33; color: #93c5fd; }
+@keyframes slideIn  { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideOut { to   { transform: translateX(120%); opacity: 0; } }
+
+/* ── Modals ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 10000; backdrop-filter: blur(4px); }
+.modal-overlay.show { display: flex; }
+.modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; max-width: 360px; width: 92%; box-shadow: var(--shadow); text-align: center; }
+.modal-box .icon { font-size: 2.4rem; margin-bottom: 10px; }
+.modal-box h3 { font-size: 1rem; margin-bottom: 6px; }
+.modal-box p { font-size: .82rem; color: var(--muted); margin-bottom: 18px; }
+.modal-actions { display: flex; gap: 8px; justify-content: center; }
+
+/* ── Settings Modal ── */
+.settings-box { max-width: 580px; width: 95%; text-align: left; padding: 0; overflow: hidden; max-height: 90vh; display: flex; flex-direction: column; }
+.settings-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.settings-header h3 { font-size: .95rem; font-weight: 700; }
+.stabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.stab-btn { padding: 8px 14px; font-size: .78rem; font-weight: 600; background: none; border: none; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+.stab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.stab-pane { display: none; padding: 14px 18px; overflow-y: auto; flex: 1; }
+.stab-pane.active { display: block; }
+.settings-list { margin-bottom: 12px; max-height: 220px; overflow-y: auto; }
+.settings-list-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 8px; font-size: .82rem; background: var(--surface2); margin-bottom: 5px; }
+.settings-add-row { display: flex; gap: 8px; }
+.settings-add-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 7px 10px; font-size: .82rem; outline: none; font-family: inherit; }
+.settings-add-row input:focus { border-color: var(--accent); }
+.settings-note { font-size: .75rem; color: var(--muted); margin-bottom: 8px; }
+
+/* ── Email Template Items in Settings ── */
+.template-item {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px;
+}
+.template-item-top { display: flex; justify-content: space-between; align-items: center; }
+.template-item-name { font-weight: 700; font-size: .84rem; color: #fff; }
+.template-item-subject { font-size: .75rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Placeholder Tag Pills ── */
+.tag-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.tag-pill {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--accent); font-size: .7rem; padding: 2px 7px; border-radius: 12px;
+  cursor: pointer; transition: all .15s; font-family: inherit;
+}
+.tag-pill:hover { background: rgba(79,142,247,.15); border-color: var(--accent); }
+
+/* ── Email Compose Modal ── */
+.email-box { max-width: 630px; width: 95%; text-align: left; padding: 0; overflow: hidden; max-height: 94vh; display: flex; flex-direction: column; }
+.btn-direct-send {
+  background: linear-gradient(135deg, #1a73e8, #1557b0);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(26,115,232,0.35);
+  border: 1px solid #186bd8;
+}
+.btn-direct-send:hover:not(:disabled) {
+  background: linear-gradient(135deg, #186bd8, #0f4694);
+  box-shadow: 0 3px 10px rgba(26,115,232,0.5);
+}
+.btn-gmail { background: #ea4335; color: #fff; }
+.btn-gmail:hover:not(:disabled) { background: #d93025; }
+.btn-outlook { background: #0078d4; color: #fff; }
+.btn-outlook:hover:not(:disabled) { background: #106ebe; }
+
+/* ── Settings Direct Send Box ── */
+.direct-send-banner {
+  background: rgba(26,115,232,0.12);
+  border: 1px solid rgba(26,115,232,0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: .78rem;
+  color: #c2d7ff;
+  line-height: 1.45;
+}
+.direct-send-banner strong { color: #fff; }
+.direct-guide-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 12px;
+  font-size: .74rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.direct-guide-card a { color: var(--accent); text-decoration: underline; }
+
+/* ── Interest Brand Detail Rows ── */
+.brand-details-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.brand-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  animation: fadeIn .2s ease;
+}
+.brand-tag {
+  background: var(--accent);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  min-width: 50px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.brand-detail-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: .8rem;
+  outline: none;
+  font-family: inherit;
+  padding: 4px 0;
+}
+.brand-detail-input::placeholder {
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+/* ── Questionnaire Print Preview Modal ── */
+.questionnaire-box { max-width: 860px; width: 94%; text-align: left; padding: 0; overflow: hidden; max-height: 94vh; display: flex; flex-direction: column; }
+.questionnaire-preview-wrap {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  background: #1e2433;
+  display: block;
+  text-align: center;
+}
+/* ── Questionnaire Form Sheet ── */
+.questionnaire-sheet {
+  display: inline-block;
+  width: 100%;
+  max-width: 760px;
+  height: auto;
+  min-height: fit-content;
+  margin: 0 auto;
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
+  padding: 14px 18px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+  text-align: left;
+  box-sizing: border-box;
+}
+.q-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 6px; margin-bottom: 8px; }
+.q-two-col { display: grid; grid-template-columns: 1.15fr 1fr; gap: 10px; margin-bottom: 8px; }
+.q-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.q-table td { border: 1px solid #000000; padding: 3.5px 7px; vertical-align: top; }
+.q-table .q-lbl { color: #000000; font-weight: 700; font-size: 14.5px; }
+.q-table .q-val { color: #000080; font-weight: 400; font-size: 14.5px; }
+
+/* ── Section Boxes ── */
+.q-box {
+  border: 1px solid #000000;
+  padding: 2px 8px;
+  margin-bottom: 3px;
+  background: #ffffff;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.q-box-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #000000;
+  margin-bottom: 1px;
+  text-align: left;
+}
+.q-brands-list { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.q-brand-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 1px 0;
+  border-bottom: none !important; /* No dots below words */
+}
+.q-brand-name { font-weight: 700; width: 75px; color: #000000; flex-shrink: 0; text-align: left; font-size: 14px; }
+.q-brand-val {
+  color: #000080;
+  font-weight: 400;
+  flex: 1;
+  font-size: 14px;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.q-remarks-text {
+  text-align: left;
+  margin: 0;
+  padding: 1px 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #000080;
+  font-weight: 400;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* ── Print Media: Strict 1-Page A4 Hard Copy ── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 4mm 5mm;
+  }
+  html, body {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  #questionnaire-print-area, #questionnaire-print-area * {
+    visibility: visible !important;
+  }
+  #questionnaireModal {
+    visibility: visible !important;
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    z-index: 99999 !important;
+  }
+  .modal-box.questionnaire-box {
+    visibility: visible !important;
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+    transform: none !important;
+  }
+  .settings-header {
+    display: none !important;
+  }
+  .questionnaire-preview-wrap {
+    visibility: visible !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+  #questionnaire-print-area {
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 285mm !important;
+    box-sizing: border-box !important;
+    margin: 0 auto !important;
+    padding: 6px 10px !important;
+    font-size: 13.5px !important;
+    border: 2px solid #000000 !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+  }
+  .q-box {
+    border: 1px solid #000000 !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 3px !important;
+    padding: 2.5px 6px !important;
+  }
+  .q-two-col {
+    margin-bottom: 4px !important;
+    gap: 6px !important;
+  }
+  .q-table {
+    font-size: 13px !important;
+  }
+  .q-table td {
+    border: 1px solid #000000 !important;
+    padding: 2px 4px !important;
+  }
+  .q-table .q-lbl, .q-table .q-val {
+    font-size: 13px !important;
+  }
+  .q-box-title {
+    font-size: 13.5px !important;
+    margin-bottom: 1px !important;
+  }
+  .q-brands-list {
+    font-size: 12.5px !important;
+    gap: 1px !important;
+  }
+  .q-brand-item {
+    border-bottom: none !important;
+    padding: 0 !important;
+  }
+  .q-brand-name {
+    font-size: 12.5px !important;
+    width: 70px !important;
+  }
+  .q-brand-val {
+    font-size: 12.5px !important;
+  }
+  .q-remarks-text {
+    font-size: 12.5px !important;
+    min-height: 18px !important;
+    line-height: 1.3 !important;
+  }
+  .q-table .q-val, .q-brand-val, .q-remarks-text {
+    color: #000000 !important;
+  }
+}
+
+/* ── Misc ── */
+.conditional-field { display: none; margin-top: 6px; }
+.conditional-field.show { display: block; }
+.flex-gap { display: flex; gap: 6px; flex-wrap: wrap; }
+.mt-4 { margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<header class="header">
+  <div class="header-logo">🪪</div>
+  <div class="header-title">
+    <h1>Business Card Scanner</h1>
+    <p>Powered by Gemini Vision AI</p>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-ghost btn-sm" onclick="openSettings('api-key')">
+      🔑 <span id="headerApiStatus">API Key</span>
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙️ Settings</button>
+    <button class="btn btn-ghost btn-sm" onclick="showClearModal()">🗑️ Clear</button>
+    <button class="btn btn-success btn-sm" onclick="exportCSV()">⬇️ Export CSV</button>
+  </div>
+</header>
+
+<!-- ═══════════ SETTINGS MODAL ═══════════ -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-box settings-box">
+    <div class="settings-header">
+      <h3>⚙️ Settings</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeSettings()">✕ Close</button>
+    </div>
+    <div class="stabs">
+      <button class="stab-btn active" onclick="switchStab('interests',this)">🎯 Interest In Brands</button>
+      <button class="stab-btn" onclick="switchStab('attendees',this)">👤 Our Sales Person</button>
+      <button class="stab-btn" onclick="switchStab('templates',this)">📧 Email Formats</button>
+      <button class="stab-btn" onclick="switchStab('direct-send',this)">⚡ Direct Send (Gmail / Outlook)</button>
+      <button class="stab-btn" onclick="switchStab('api-key',this)">🔑 Gemini API Key</button>
+    </div>
+    <!-- Interest In Tab -->
+    <div class="stab-pane active" id="stab-interests">
+      <p class="settings-note">Add or remove brands shown in the "Interest In" dropdown. "Others" is always kept at the end.</p>
+      <div class="settings-list" id="interests-list"></div>
+      <div class="settings-add-row">
+        <input type="text" id="new-interest-input" placeholder="Brand name (e.g. SKF)…" onkeydown="if(event.key==='Enter')addInterest()"/>
+        <button class="btn btn-primary btn-sm" onclick="addInterest()">+ Add</button>
+      </div>
+    </div>
+    <!-- Our Sales Person Tab -->
+    <div class="stab-pane" id="stab-attendees">
+      <p class="settings-note">Add the names of our sales persons who attend exhibitions. They'll appear in the "Our Sales Person" dropdown.</p>
+      <div class="settings-list" id="attendees-list"></div>
+      <div class="settings-add-row">
+        <input type="text" id="new-attendee-input" placeholder="Sales person name (e.g. Rahul Sharma)…" onkeydown="if(event.key==='Enter')addAttendee()"/>
+        <button class="btn btn-primary btn-sm" onclick="addAttendee()">+ Add</button>
+      </div>
+    </div>
+    <!-- Email Templates Tab -->
+    <div class="stab-pane" id="stab-templates">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <p class="settings-note" style="margin:0">Create and customize email formats for Gmail &amp; Outlook.</p>
+        <button class="btn btn-primary btn-xs" id="btn-new-tpl" onclick="openNewTemplateForm()">+ Add Format</button>
+      </div>
+      <div id="templates-list-view">
+        <div class="settings-list" id="templates-list" style="max-height:280px"></div>
+      </div>
+      <div id="template-editor-view" style="display:none">
+        <div style="font-weight:700;font-size:.84rem;margin-bottom:8px;color:var(--accent)" id="tpl-editor-title">✏️ Edit Email Format</div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Format Name</label>
+          <input type="text" id="tpl-name-input" placeholder="e.g. General Exhibition Follow-Up" onfocus="activeInputForTag='tpl-name-input'"/>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Subject Line</label>
+          <input type="text" id="tpl-subject-input" placeholder="e.g. Great meeting you at the show, {Visitor Name}!" onfocus="activeInputForTag='tpl-subject-input'"/>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Email Body</label>
+          <textarea id="tpl-body-input" style="min-height:95px" placeholder="Write email body text…" onfocus="activeInputForTag='tpl-body-input'"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Email Footer / Signature</label>
+          <textarea id="tpl-footer-input" style="min-height:70px" placeholder="e.g. Best regards,&#10;{Our Sales Person}&#10;Durga Bearings Co. Pvt. Ltd.&#10;www.durgabrgs.com" onfocus="activeInputForTag='tpl-footer-input'"></textarea>
+        </div>
+        <div style="margin-bottom:12px">
+          <span style="font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:600;display:block">Click to insert tag:</span>
+          <div class="tag-pills">
+            <button type="button" class="tag-pill" onclick="insertTag('{Visitor Name}')">{Visitor Name}</button>
+            <button type="button" class="tag-pill" onclick="insertTag('{Company Name}')">{Company Name}</button>
+            <button type="button" class="tag-pill" onclick="insertTag('{Designation}')">{Designation}</button>
+            <button type="button" class="tag-pill" onclick="insertTag('{Interest In}')">{Interest In}</button>
+            <button type="button" class="tag-pill" onclick="insertTag('{Customer Product}')">{Customer Product}</button>
+            <button type="button" class="tag-pill" onclick="insertTag('{Department}')">{Department}</button>
+            <button type="button" class="tag-pill" onclick="insertTag('{Our Sales Person}')">{Our Sales Person}</button>
+            <button type="button" class="tag-pill" onclick="insertTag('{Day of Show}')">{Day of Show}</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="cancelTemplateEdit()">Cancel</button>
+          <button class="btn btn-success btn-sm" onclick="saveTemplateFromEditor()">💾 Save Format</button>
+        </div>
+      </div>
+    </div>
+    <!-- Direct Send (Gmail / Outlook) Tab -->
+    <div class="stab-pane" id="stab-direct-send">
+      <div class="direct-send-banner">
+        ⚡ <strong>1-Click Direct Email Dispatch (Gmail &amp; Outlook)</strong><br/>
+        Save your email credentials below to send follow-up emails in the background directly from Gmail and/or Outlook.
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Your Name / Company Title (Sender Display Name)</label>
+        <input type="text" id="smtp-sender-name" placeholder="e.g. Rahul Sharma | Durga Bearings"/>
+      </div>
+
+      <!-- Gmail Card -->
+      <div style="background:rgba(234,67,53,0.06);border:1px solid rgba(234,67,53,0.25);border-radius:8px;padding:12px;margin-bottom:14px">
+        <div style="font-weight:700;font-size:.82rem;color:#f87171;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <span>🔴</span> Gmail Direct Send Settings
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Your Gmail Address</label>
+          <input type="email" id="smtp-gmail-user" placeholder="e.g. misdurgabrgs@gmail.com"/>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Gmail 16-character App Password</label>
+          <div style="display:flex;gap:6px">
+            <input type="password" id="smtp-gmail-pass" placeholder="xxxx xxxx xxxx xxxx" autocomplete="off" style="flex:1"/>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="togglePassVis('smtp-gmail-pass')">👁️</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+          <button class="btn btn-gmail btn-sm" id="btn-test-gmail" onclick="testGmailConnection()">🔍 Test Gmail Connection</button>
+          <span id="gmail-test-status" style="font-size:.75rem"></span>
+        </div>
+        <div class="direct-guide-card" style="margin-top:8px">
+          <strong style="color:#fff">ℹ️ Gmail Setup:</strong> Get your free 16-char App Password at <a href="https://myaccount.google.com/apppasswords" target="_blank">myaccount.google.com/apppasswords ↗</a>.
+        </div>
+      </div>
+
+      <!-- Outlook Card -->
+      <div style="background:rgba(0,120,212,0.06);border:1px solid rgba(0,120,212,0.25);border-radius:8px;padding:12px;margin-bottom:14px">
+        <div style="font-weight:700;font-size:.82rem;color:#60a5fa;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <span>🔵</span> Outlook / Microsoft 365 Direct Send Settings
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Your Outlook / Microsoft 365 Email</label>
+          <input type="email" id="smtp-outlook-user" placeholder="e.g. sales@durgabrgs.com or yourname@outlook.com"/>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Password (or Microsoft App Password)</label>
+          <div style="display:flex;gap:6px">
+            <input type="password" id="smtp-outlook-pass" placeholder="Your Outlook / Office 365 password" autocomplete="off" style="flex:1"/>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="togglePassVis('smtp-outlook-pass')">👁️</button>
+          </div>
+        </div>
+        <div class="form-grid" style="grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom:8px">
+          <div class="form-group">
+            <label>SMTP Host</label>
+            <input type="text" id="smtp-outlook-host" value="smtp.office365.com"/>
+          </div>
+          <div class="form-group">
+            <label>Port</label>
+            <input type="number" id="smtp-outlook-port" value="587"/>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+          <button class="btn btn-outlook btn-sm" id="btn-test-outlook" onclick="testOutlookConnection()">🔍 Test Outlook Connection</button>
+          <span id="outlook-test-status" style="font-size:.75rem"></span>
+        </div>
+        <div class="direct-guide-card" style="margin-top:8px">
+          <strong style="color:#fff">ℹ️ Outlook Setup:</strong> Default host is <code>smtp.office365.com</code> (or <code>smtp-mail.outlook.com</code> for Hotmail/personal accounts).
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;margin-bottom:12px">
+        <button class="btn btn-success btn-sm" onclick="saveDirectSendSettings()">💾 Save Email Settings</button>
+      </div>
+    </div>
+    <!-- Gemini API Key Tab -->
+    <div class="stab-pane" id="stab-api-key">
+      <div class="direct-send-banner" style="background:rgba(52,211,153,0.12);border-color:rgba(52,211,153,0.3);color:#d1fae5">
+        🔑 <strong>Gemini Vision AI Key</strong><br/>
+        Used for intelligent OCR and high-accuracy business card text extraction.
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Gemini API Key</label>
+        <div style="display:flex;gap:6px">
+          <input type="password" id="apiKeyInput" placeholder="Paste your key from aistudio.google.com …" autocomplete="off" style="flex:1"/>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="toggleKeyVis()">👁️</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <button class="btn btn-primary btn-sm" onclick="saveApiKey()">💾 Save API Key</button>
+        <span class="api-status bad" id="apiStatus">Not set</span>
+      </div>
+      <div class="direct-guide-card">
+        <strong style="color:#fff">ℹ️ Need a free Gemini API Key?</strong><br/>
+        Visit <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio (aistudio.google.com) ↗</a>, click <strong>"Create API key"</strong>, and paste it here.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MAIN GRID ═══════════ -->
+<div class="main">
+
+  <!-- ── LEFT: Capture Card ── -->
+  <div class="panel">
+    <div class="panel-title">📷 Capture Card</div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('camera',this)">📹 Camera</button>
+      <button class="tab-btn" onclick="switchTab('upload',this)">📁 Upload File</button>
+    </div>
+
+    <!-- Camera Tab -->
+    <div class="tab-pane active" id="tab-camera">
+      <div class="camera-wrap">
+        <video id="videoEl" autoplay playsinline muted></video>
+        <div class="cam-overlay"><div class="cam-guide"></div></div>
+        <div class="cam-label">Align business card within the frame</div>
+      </div>
+      <img id="capturedPreview" src="" alt="Captured"/>
+      <div class="cam-controls">
+        <button class="btn btn-primary btn-sm" id="startCamBtn" onclick="startCamera()">▶️ Start Camera</button>
+        <button class="btn btn-ghost   btn-sm" id="flipCamBtn"  onclick="flipCamera()"   style="display:none">🔄 Flip</button>
+        <button class="btn btn-success btn-sm" id="captureBtn"  onclick="capturePhoto()" style="display:none">📸 Capture</button>
+        <button class="btn btn-ghost   btn-sm" id="retakeBtn"   onclick="retakePhoto()"  style="display:none">↩️ Retake</button>
+        <button class="btn btn-danger  btn-sm" id="stopCamBtn"  onclick="stopCamera()"   style="display:none">⏹ Stop</button>
+      </div>
+    </div>
+
+    <!-- Upload Tab -->
+    <div class="tab-pane" id="tab-upload">
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('uploadInput').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <div class="upload-icon">🖼️</div>
+        <p><strong>Click to browse</strong> or drag &amp; drop</p>
+        <p>JPEG, PNG, WEBP, HEIC supported</p>
+        <input type="file" id="uploadInput" accept="image/*" onchange="onFileSelect(event)"/>
+      </div>
+      <img id="uploadPreview" src="" alt="Uploaded"/>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: Review & Edit ── -->
+  <div class="panel review-panel" id="reviewPanel">
+    <div class="panel-title">✏️ Review &amp; Edit</div>
+
+    <div id="reviewPlaceholder" class="review-placeholder">
+      <div class="icon">🤖</div>
+      <p>Scan a business card to see extracted details here.</p>
+    </div>
+
+    <div id="reviewForm" style="display:none">
+      <div class="dup-warn" id="dupWarn">⚠️ <strong>Possible duplicate!</strong> <span id="dupInfo"></span></div>
+
+      <!-- ── Contact Details ── -->
+      <div class="form-section-title">👤 Contact Details</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Visitor Name</label>
+          <input type="text" id="f-name" placeholder="Full name"/>
+        </div>
+        <div class="form-group">
+          <label>Designation</label>
+          <input type="text" id="f-designation" placeholder="Job title"/>
+        </div>
+        <div class="form-group">
+          <label>Company Name</label>
+          <input type="text" id="f-company" placeholder="Company"/>
+        </div>
+        <div class="form-group">
+          <label>Website</label>
+          <input type="text" id="f-website" placeholder="www.example.com"/>
+        </div>
+        <div class="form-group">
+          <label>Mobile Number</label>
+          <input type="text" id="f-mobile" placeholder="+91 98765 43210"/>
+        </div>
+        <div class="form-group">
+          <label>Telephone</label>
+          <input type="text" id="f-phone" placeholder="+91 80 1234 5678"/>
+        </div>
+        <div class="form-group">
+          <label>Phone Number</label>
+          <input type="text" id="f-phone2" placeholder="+91 80 1234 5679 / Alt Phone"/>
+        </div>
+        <div class="form-group">
+          <label>Fax Number</label>
+          <input type="text" id="f-fax" placeholder="+91 80 1234 5670"/>
+        </div>
+        <div class="form-group">
+          <label>Email Address(es)</label>
+          <input type="text" id="f-email" placeholder="name@company.com"/>
+        </div>
+        <div class="form-group">
+          <label>City</label>
+          <input type="text" id="f-city" placeholder="City"/>
+        </div>
+        <div class="form-group">
+          <label>Pin Code</label>
+          <input type="text" id="f-pincode" placeholder="400001"/>
+        </div>
+        <div class="form-group">
+          <label>State</label>
+          <select id="f-state">
+            <option value="">Select state…</option>
+            <option>Mumbai</option>
+            <option>Chennai</option>
+            <option>Bengaluru</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Address</label>
+          <textarea id="f-address" placeholder="Full address…"></textarea>
+        </div>
+      </div>
+
+      <!-- ── Show Information ── -->
+      <div class="form-section-title">📅 Show Information</div>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Name of Show</label>
+          <input type="text" id="f-show-name" placeholder="e.g. IMTEX 2025" value="IMTEX 2025"/>
+        </div>
+        <div class="form-group">
+          <label>Day of the Show</label>
+          <input type="date" id="f-show-date"/>
+        </div>
+        <div class="form-group">
+          <label>Our Sales Person</label>
+          <select id="f-attended-by">
+            <option value="">Select sales person…</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- ── Business Details ── -->
+      <div class="form-section-title">💼 Business Details</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Customer Type</label>
+          <select id="f-customer-type" onchange="onCustomerTypeChange()">
+            <option value="">Select…</option>
+            <option>End User</option>
+            <option>OEM</option>
+            <option>Distributor</option>
+            <option>Others</option>
+          </select>
+          <input type="text" id="f-customer-type-other" class="conditional-field" placeholder="Specify customer type…"/>
+        </div>
+        <div class="form-group">
+          <label>Department</label>
+          <select id="f-department">
+            <option value="">Select…</option>
+            <option>Design</option>
+            <option>Quality</option>
+            <option>Purchasing</option>
+            <option>Sales</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Follow Up</label>
+          <select id="f-followup">
+            <option value="">Select…</option>
+            <option>Standard</option>
+            <option>High</option>
+            <option>Very High</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Product Catalogue Used</label>
+          <textarea id="f-catalogue" rows="2" style="min-height:50px;font-family:inherit" placeholder="Catalogue name/number…"></textarea>
+        </div>
+
+        <div class="form-group full">
+          <label>Customer Product</label>
+          <textarea id="f-customer-product" rows="5" style="min-height:105px;font-family:inherit" placeholder="Customer product(s) of interest, applications, specifications…"></textarea>
+        </div>
+
+        <!-- Interest In (multiselect with per-brand text input) -->
+        <div class="form-group full">
+          <label>🎯 Interest In</label>
+          <div class="ms-wrap" id="ms-wrap-interests">
+            <div class="ms-display" onclick="toggleMS('interests')">
+              <span class="ms-text ph" id="ms-text-interests">Select brands…</span>
+              <span class="ms-arrow" id="ms-arrow-interests">▾</span>
+            </div>
+            <div class="ms-dropdown" id="ms-opts-interests"></div>
+          </div>
+          <div class="brand-details-container" id="interest-brand-details"></div>
+        </div>
+
+        <!-- Action Required (multiselect) -->
+        <div class="form-group full">
+          <label>⚡ Action Required</label>
+          <div class="check-group">
+            <label class="check-item">
+              <input type="checkbox" id="ar-urgent" value="Urgent Sales Visit"/>
+              <span>Urgent Sales Visit</span>
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="ar-literature" value="Product Literature / Introduction Letter"/>
+              <span>Product Literature / Introduction Letter</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group full">
+          <label>📝 Notes / Remarks</label>
+          <textarea id="f-notes" rows="3" style="min-height:75px;font-family:inherit" placeholder="Where you met, context, observations, or remarks…"></textarea>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="review-actions">
+        <button class="btn btn-success" onclick="saveCard()" title="Save scanned contact to table">💾 Save Card</button>
+        <button class="btn btn-primary" style="background:#4f46e5;border-color:#4338ca" onclick="openQuestionnaireModal()" title="Fill & Print QUESTIONARE FORM 2025 hard copy">🖨️ Print Form</button>
+        <button class="btn btn-ghost" style="border-color:rgba(79,142,247,0.5);color:var(--accent)" onclick="downloadQuestionnaireDocx()" title="Download filled QUESTIONARE FORM 2025.docx">📄 Word Doc</button>
+        <button class="btn btn-primary" onclick="sendEmail()" title="Compose & Send Follow-up Email">📧 Send Email</button>
+        <button class="btn btn-ghost"   onclick="clearReview()" title="Clear current inputs">✕ Discard</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FULL WIDTH: Records Table ── -->
+  <div class="panel records-section">
+    <div class="records-header">
+      <h2>📋 Scanned Cards Today</h2>
+      <span class="badge" id="cardCount">0</span>
+      <button class="btn btn-warn btn-sm" onclick="exportCSV()">⬇️ Export CSV</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Time</th>
+            <th>Visitor Name</th>
+            <th>Company</th>
+            <th>Mobile</th>
+            <th>Email</th>
+            <th>Interest In</th>
+            <th>Follow Up</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="cardsTableBody">
+          <tr><td colspan="9" class="empty-state">No cards scanned yet. Start by capturing a card! 🪪</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<div id="toastContainer"></div>
+
+<!-- Clear Modal -->
+<div class="modal-overlay" id="clearModal">
+  <div class="modal-box">
+    <div class="icon">🗑️</div>
+    <h3>Clear Session?</h3>
+    <p>All scanned cards from this session will be removed. Export CSV first!</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="hideClearModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="clearSession()">Yes, Clear All</button>
+    </div>
+  </div>
+</div>
+
+<!-- Send Email Modal -->
+<div class="modal-overlay" id="emailModal">
+  <div class="modal-box email-box">
+    <div class="settings-header">
+      <h3>📧 Send Follow-Up Email</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeEmailModal()">✕ Close</button>
+    </div>
+    <div style="padding:12px 16px;overflow-y:auto;text-align:left;flex:1">
+      <div class="form-group" style="margin-bottom:8px">
+        <label>To (Recipient Email)</label>
+        <input type="email" id="em-to" placeholder="name@company.com"/>
+      </div>
+      <div class="form-group" style="margin-bottom:8px">
+        <label>Select Format / Template</label>
+        <select id="em-template-select" onchange="onEmailTemplateChange()">
+          <!-- Populated from saved templates -->
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:8px">
+        <label>Subject Line</label>
+        <input type="text" id="em-subject" placeholder="Subject…"/>
+      </div>
+      <div class="form-group" style="margin-bottom:8px">
+        <label>Message Body</label>
+        <textarea id="em-body" style="min-height:90px;font-family:inherit" placeholder="Email body…"></textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Email Footer / Signature</label>
+        <textarea id="em-footer" style="min-height:55px;font-family:inherit" placeholder="Email signature…"></textarea>
+      </div>
+      <div style="font-size:.68rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Send Options:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <!-- Gmail Option -->
+        <button class="btn btn-gmail btn-sm" id="btn-send-gmail-direct" onclick="sendDirectlyGmail()" title="1-Click background send via Gmail">
+          <span>⚡</span> Send via Gmail
+        </button>
+
+        <!-- Outlook Options -->
+        <button class="btn btn-outlook btn-sm" id="btn-send-outlook-direct" onclick="sendDirectlyOutlook()" title="1-Click background send via Outlook / Office 365">
+          <span>⚡</span> Send via Outlook
+        </button>
+        <button class="btn btn-ghost btn-sm" style="color:#60a5fa;border-color:rgba(0,120,212,0.35)" onclick="sendViaOutlookWeb()" title="Open in Outlook Web compose tab">
+          <span>🔵</span> Outlook Web
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="sendViaOutlookApp()" title="Open in installed Outlook Desktop Application">
+          <span>💻</span> Outlook Desktop App
+        </button>
+
+        <!-- Copy -->
+        <button class="btn btn-ghost btn-sm" onclick="copyEmailText()" title="Copy email text and signature">
+          <span>📋</span> Copy
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ QUESTIONNAIRE FORM PRINT & DOCX MODAL ═══════════ -->
+<div class="modal-overlay" id="questionnaireModal">
+  <div class="modal-box questionnaire-box">
+    <div class="settings-header">
+      <h3>🖨️ Exhibition Questionnaire Form (Hard Copy & Word Doc)</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary btn-sm" style="background:#4f46e5;border-color:#4338ca" onclick="printQuestionnaire()">
+          <span>🖨️</span> Print Hard Copy (A4)
+        </button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--accent);border-color:rgba(79,142,247,0.4)" onclick="downloadQuestionnaireDocx(activeQuestionnaireCard)">
+          <span>📄</span> Download .docx
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="closeQuestionnaireModal()">✕ Close</button>
+      </div>
+    </div>
+    <div class="questionnaire-preview-wrap">
+      <div class="questionnaire-sheet" id="questionnaire-print-area">
+        <!-- Rendered dynamically by renderQuestionnaireSheet() -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  CONSTANTS & DEFAULTS
+// ══════════════════════════════════════════════
+const DEFAULT_TEMPLATES = [
+  {
+    id: 'tpl-1',
+    name: 'General Exhibition Follow-Up',
+    subject: 'Great meeting you at the exhibition, {Visitor Name}!',
+    body: `Dear {Visitor Name},
+
+It was a pleasure meeting you from {Company Name} at the exhibition.
+
+Thank you for taking the time to visit our booth and discuss your requirements. Regarding your interest in {Interest In}, we are pleased to offer our comprehensive range of high-performance products and engineering solutions for {Customer Product}.
+
+Please let us know if you need any technical datasheets, catalogues, or if you would like to schedule a follow-up discussion.
+
+Looking forward to staying in touch.`,
+    footer: `Best regards,
+{Our Sales Person}
+Durga Bearings Co. Pvt. Ltd.
+Web: www.durgabrgs.com | Tel: +91-80-67718015`
+  },
+  {
+    id: 'tpl-2',
+    name: 'Product Literature & Catalogue',
+    subject: 'Product Literature & Information: {Interest In} - {Company Name}',
+    body: `Dear {Visitor Name},
+
+Thank you for connecting with us regarding {Interest In}.
+
+As discussed during our meeting, we are sharing our latest product literature and introduction materials for your {Department} team.
+
+We would be glad to understand your ongoing projects and provide tailored technical recommendations.`,
+    footer: `Best regards,
+{Our Sales Person}
+Durga Bearings Co. Pvt. Ltd.
+Web: www.durgabrgs.com | Tel: +91-80-67718015`
+  },
+  {
+    id: 'tpl-3',
+    name: 'Urgent Sales Visit Request',
+    subject: 'Follow-Up: Scheduling a Visit for {Company Name}',
+    body: `Dear {Visitor Name},
+
+Following our discussion regarding {Interest In} and your requirements for {Customer Product}, our technical team would like to schedule a personal visit to your facility.
+
+Could you please suggest a convenient day and time next week for us to meet?`,
+    footer: `Best regards,
+{Our Sales Person}
+Durga Bearings Co. Pvt. Ltd.
+Web: www.durgabrgs.com | Tel: +91-80-67718015`
+  }
+];
+
+const DEFAULT_SETTINGS = {
+  interests: ['INA','FAG','NSK','THK','TPI','BMD','SLF','Others'],
+  attendees: [],
+  templates: DEFAULT_TEMPLATES,
+  directSend: {
+    senderName: '',
+    gmailUser: '',
+    gmailPass: '',
+    outlookUser: '',
+    outlookPass: '',
+    outlookHost: 'smtp.office365.com',
+    outlookPort: 587
+  }
+};
+
+// ══════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════
+let stream            = null;
+let facingMode        = 'environment';
+let activeImageB64    = null;
+let activeMime        = 'image/jpeg';
+let activeSource      = 'Webcam';
+let cards             = [];
+let editingIndex      = null;
+let settings          = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+let editingTemplateId = null;
+let activeEmailCard   = null;
+let activeInputForTag = 'tpl-body-input';
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+(function init() {
+  // API key
+  const key = localStorage.getItem('gemini_api_key') || '';
+  if (key) {
+    const el = document.getElementById('apiKeyInput');
+    if (el) el.value = key;
+    updateApiStatus(true);
+  } else {
+    updateApiStatus(false);
+  }
+
+  // Settings
+  loadSettings();
+
+  // Today's cards
+  const today = new Date().toLocaleDateString();
+  const stored = localStorage.getItem('bcs_cards_' + today);
+  if (stored) {
+    try { cards = JSON.parse(stored); renderTable(); } catch(_) {}
+  }
+
+  // Set default show date to today
+  const today_iso = new Date().toISOString().split('T')[0];
+  document.getElementById('f-show-date').value = today_iso;
+
+  // Close multiselect on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.ms-wrap')) {
+      document.querySelectorAll('.ms-dropdown.open').forEach(d => {
+        const id = d.id.replace('ms-opts-','');
+        d.classList.remove('open');
+        document.getElementById('ms-arrow-' + id)?.classList.remove('rot');
+        document.querySelector(`#ms-wrap-${id} .ms-display`)?.classList.remove('open');
+      });
+    }
+  });
+})();
+
+// ══════════════════════════════════════════════
+//  SETTINGS
+// ══════════════════════════════════════════════
+function loadSettings() {
+  const stored = localStorage.getItem('bcs_settings');
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      settings = {
+        interests: parsed.interests || DEFAULT_SETTINGS.interests,
+        attendees: parsed.attendees || DEFAULT_SETTINGS.attendees,
+        templates: (parsed.templates && parsed.templates.length) ? parsed.templates.map(t => ({ footer: '', ...t })) : DEFAULT_TEMPLATES,
+        directSend: { ...DEFAULT_SETTINGS.directSend, ...(parsed.directSend || {}) }
+      };
+    } catch(_) { settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); }
+  } else {
+    settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  }
+  renderMSOptions('interests', settings.interests);
+  renderAttendeeSelect();
+  loadDirectSendUI();
+}
+
+function saveSettingsData() {
+  localStorage.setItem('bcs_settings', JSON.stringify(settings));
+}
+
+function openSettings(targetTab) {
+  renderSettingsList('interests');
+  renderSettingsList('attendees');
+  renderTemplatesList();
+  cancelTemplateEdit();
+  loadDirectSendUI();
+  const key = getApiKey();
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  if (apiKeyInput) apiKeyInput.value = key;
+  updateApiStatus(!!key);
+  document.getElementById('settingsModal').classList.add('show');
+  if (targetTab) {
+    const tabBtns = document.querySelectorAll('.stab-btn');
+    if (targetTab === 'direct-send' && tabBtns[3]) tabBtns[3].click();
+    else if (targetTab === 'templates' && tabBtns[2]) tabBtns[2].click();
+    else if (targetTab === 'attendees' && tabBtns[1]) tabBtns[1].click();
+    else if (targetTab === 'api-key' && tabBtns[4]) tabBtns[4].click();
+    else if (targetTab === 'interests' && tabBtns[0]) tabBtns[0].click();
+  }
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('show');
+  renderMSOptions('interests', settings.interests);
+  updateMSDisplay('interests');
+  renderAttendeeSelect();
+}
+
+function switchStab(tab, btn) {
+  document.querySelectorAll('.stab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.stab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('stab-' + tab).classList.add('active');
+  btn.classList.add('active');
+  if (tab === 'templates') {
+    renderTemplatesList();
+    cancelTemplateEdit();
+  } else if (tab === 'direct-send') {
+    loadDirectSendUI();
+  } else if (tab === 'api-key') {
+    const key = getApiKey();
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    if (apiKeyInput) apiKeyInput.value = key;
+    updateApiStatus(!!key);
+  }
+}
+
+function renderSettingsList(type) {
+  const list = document.getElementById(type + '-list');
+  const items = settings[type] || [];
+  if (!items.length) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:.78rem;padding:6px 0">No items yet. Add some below.</p>';
+    return;
+  }
+  list.innerHTML = items.map((item, i) => `
+    <div class="settings-list-item">
+      <span>${esc(item)}</span>
+      <button class="btn btn-danger btn-xs" onclick="removeSettingsItem('${type}',${i})">✕</button>
+    </div>`).join('');
+}
+
+function removeSettingsItem(type, index) {
+  settings[type].splice(index, 1);
+  saveSettingsData();
+  renderSettingsList(type);
+  toast('Item removed', 'warn');
+}
+
+function addInterest() {
+  const input = document.getElementById('new-interest-input');
+  const val = input.value.trim();
+  if (!val) return;
+  if (settings.interests.some(i => i.toLowerCase() === val.toLowerCase())) { toast('Already exists', 'warn'); return; }
+  const othIdx = settings.interests.findIndex(i => i === 'Others');
+  if (othIdx > -1) settings.interests.splice(othIdx, 0, val);
+  else settings.interests.push(val);
+  input.value = '';
+  saveSettingsData();
+  renderSettingsList('interests');
+  toast(`"${val}" added to Interest In`, 'success');
+}
+
+function addAttendee() {
+  const input = document.getElementById('new-attendee-input');
+  const val = input.value.trim();
+  if (!val) return;
+  if (settings.attendees.includes(val)) { toast('Already exists', 'warn'); return; }
+  settings.attendees.push(val);
+  input.value = '';
+  saveSettingsData();
+  renderSettingsList('attendees');
+  renderAttendeeSelect();
+  toast(`"${val}" added to Our Sales Person`, 'success');
+}
+
+function renderAttendeeSelect() {
+  const sel = document.getElementById('f-attended-by');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Select sales person…</option>' +
+    (settings.attendees.length
+      ? settings.attendees.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('')
+      : '<option disabled value="">— Add names in Settings ⚙️ —</option>');
+  if (settings.attendees.includes(cur)) sel.value = cur;
+}
+
+// ══════════════════════════════════════════════
+//  EMAIL TEMPLATES (SETTINGS)
+// ══════════════════════════════════════════════
+function renderTemplatesList() {
+  const container = document.getElementById('templates-list');
+  const tpls = settings.templates || [];
+  if (!tpls.length) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:.78rem;padding:8px 0">No email formats saved. Click "+ Add Format" to create one.</p>';
+    return;
+  }
+  container.innerHTML = tpls.map((t, idx) => `
+    <div class="template-item">
+      <div class="template-item-top">
+        <span class="template-item-name">${esc(t.name)}</span>
+        <div class="flex-gap">
+          <button class="btn btn-ghost btn-xs" onclick="editTemplate('${t.id}')">✏️ Edit</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteTemplate('${t.id}')">🗑️</button>
+        </div>
+      </div>
+      <div class="template-item-subject">📧 <strong>Subject:</strong> ${esc(t.subject)}</div>
+    </div>
+  `).join('');
+}
+
+function openNewTemplateForm() {
+  editingTemplateId = null;
+  document.getElementById('tpl-editor-title').textContent = '➕ Create New Email Format';
+  document.getElementById('tpl-name-input').value = '';
+  document.getElementById('tpl-subject-input').value = '';
+  document.getElementById('tpl-body-input').value = '';
+  document.getElementById('tpl-footer-input').value = `Best regards,\n{Our Sales Person}\nDurga Bearings Co. Pvt. Ltd.\nWeb: www.durgabrgs.com | Tel: +91-80-67718015`;
+  activeInputForTag = 'tpl-body-input';
+  document.getElementById('templates-list-view').style.display = 'none';
+  document.getElementById('template-editor-view').style.display = 'block';
+}
+
+function editTemplate(id) {
+  const t = (settings.templates || []).find(x => x.id === id);
+  if (!t) return;
+  editingTemplateId = id;
+  document.getElementById('tpl-editor-title').textContent = '✏️ Edit Email Format';
+  document.getElementById('tpl-name-input').value = t.name || '';
+  document.getElementById('tpl-subject-input').value = t.subject || '';
+  document.getElementById('tpl-body-input').value = t.body || '';
+  document.getElementById('tpl-footer-input').value = t.footer || '';
+  activeInputForTag = 'tpl-body-input';
+  document.getElementById('templates-list-view').style.display = 'none';
+  document.getElementById('template-editor-view').style.display = 'block';
+}
+
+function cancelTemplateEdit() {
+  editingTemplateId = null;
+  document.getElementById('template-editor-view').style.display = 'none';
+  document.getElementById('templates-list-view').style.display = 'block';
+}
+
+function insertTag(tag) {
+  const targetId = activeInputForTag || 'tpl-body-input';
+  const targetInput = document.getElementById(targetId) || document.getElementById('tpl-body-input');
+  if (!targetInput) return;
+  const start = targetInput.selectionStart ?? targetInput.value.length;
+  const end = targetInput.selectionEnd ?? targetInput.value.length;
+  const text = targetInput.value;
+  targetInput.value = text.substring(0, start) + tag + text.substring(end);
+  targetInput.focus();
+  targetInput.selectionStart = targetInput.selectionEnd = start + tag.length;
+}
+
+function saveTemplateFromEditor() {
+  const name    = document.getElementById('tpl-name-input').value.trim();
+  const subject = document.getElementById('tpl-subject-input').value.trim();
+  const body    = document.getElementById('tpl-body-input').value;
+  const footer  = document.getElementById('tpl-footer-input').value;
+
+  if (!name) { toast('Please enter a Format Name', 'error'); return; }
+  if (!subject) { toast('Please enter a Subject Line', 'error'); return; }
+
+  if (!settings.templates) settings.templates = [];
+
+  if (editingTemplateId) {
+    const idx = settings.templates.findIndex(x => x.id === editingTemplateId);
+    if (idx > -1) {
+      settings.templates[idx] = { id: editingTemplateId, name, subject, body, footer };
+      toast(`Format "${name}" updated ✓`, 'success');
+    }
+  } else {
+    const newId = 'tpl-' + Date.now();
+    settings.templates.push({ id: newId, name, subject, body, footer });
+    toast(`Format "${name}" added ✓`, 'success');
+  }
+
+  saveSettingsData();
+  cancelTemplateEdit();
+  renderTemplatesList();
+}
+
+function deleteTemplate(id) {
+  const idx = (settings.templates || []).findIndex(x => x.id === id);
+  if (idx === -1) return;
+  const name = settings.templates[idx].name;
+  if (!confirm(`Delete email format "${name}"?`)) return;
+  settings.templates.splice(idx, 1);
+  saveSettingsData();
+  renderTemplatesList();
+  toast('Format deleted', 'warn');
+}
+
+// ══════════════════════════════════════════════
+//  DIRECT SEND (GMAIL & OUTLOOK SETTINGS)
+// ══════════════════════════════════════════════
+function togglePassVis(id) {
+  const el = document.getElementById(id);
+  if (el) el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+function loadDirectSendUI() {
+  const ds = settings.directSend || {};
+  document.getElementById('smtp-sender-name').value   = ds.senderName || '';
+  document.getElementById('smtp-gmail-user').value     = ds.gmailUser || (ds.provider === 'gmail' ? ds.smtpUser : '') || '';
+  document.getElementById('smtp-gmail-pass').value     = ds.gmailPass || (ds.provider === 'gmail' ? ds.smtpPass : '') || '';
+  document.getElementById('smtp-outlook-user').value   = ds.outlookUser || (ds.provider !== 'gmail' ? ds.smtpUser : '') || '';
+  document.getElementById('smtp-outlook-pass').value   = ds.outlookPass || (ds.provider !== 'gmail' ? ds.smtpPass : '') || '';
+  document.getElementById('smtp-outlook-host').value   = ds.outlookHost || 'smtp.office365.com';
+  document.getElementById('smtp-outlook-port').value   = ds.outlookPort || 587;
+
+  const gStatus = document.getElementById('gmail-test-status');
+  if (gStatus) gStatus.textContent = '';
+  const oStatus = document.getElementById('outlook-test-status');
+  if (oStatus) oStatus.textContent = '';
+}
+
+function saveDirectSendSettings() {
+  if (!settings.directSend) settings.directSend = {};
+  settings.directSend.senderName  = document.getElementById('smtp-sender-name').value.trim();
+  settings.directSend.gmailUser   = document.getElementById('smtp-gmail-user').value.trim();
+  settings.directSend.gmailPass   = document.getElementById('smtp-gmail-pass').value.trim().replace(/\s+/g, '');
+  settings.directSend.outlookUser = document.getElementById('smtp-outlook-user').value.trim();
+  settings.directSend.outlookPass = document.getElementById('smtp-outlook-pass').value.trim().replace(/\s+/g, '');
+  settings.directSend.outlookHost = document.getElementById('smtp-outlook-host').value.trim() || 'smtp.office365.com';
+  settings.directSend.outlookPort = parseInt(document.getElementById('smtp-outlook-port').value, 10) || 587;
+  saveSettingsData();
+  toast('Email settings saved ✓', 'success');
+}
+
+async function testGmailConnection() {
+  const smtpUser = document.getElementById('smtp-gmail-user').value.trim();
+  const smtpPass = document.getElementById('smtp-gmail-pass').value.trim().replace(/\s+/g, '');
+  const statusEl = document.getElementById('gmail-test-status');
+  const testBtn  = document.getElementById('btn-test-gmail');
+
+  if (!smtpUser || !smtpPass) {
+    toast('Please enter your Gmail address and 16-character App Password', 'warn');
+    return;
+  }
+
+  testBtn.disabled = true;
+  testBtn.textContent = '⏳ Testing…';
+  if (statusEl) { statusEl.style.color = 'var(--accent)'; statusEl.textContent = 'Connecting to Gmail…'; }
+
+  try {
+    const resp = await fetch('/api/test-smtp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ smtpUser, smtpPass, smtpHost: 'smtp.gmail.com', smtpPort: 587 })
+    });
+    const result = await resp.json();
+    if (result.success) {
+      toast('✅ ' + result.message, 'success');
+      if (statusEl) { statusEl.style.color = '#34d399'; statusEl.textContent = '✓ Gmail Verified'; }
+      saveDirectSendSettings();
+    } else {
+      toast('❌ ' + (result.error || 'Authentication failed'), 'error');
+      if (statusEl) { statusEl.style.color = '#f87171'; statusEl.textContent = '✕ Test failed'; }
+    }
+  } catch (err) {
+    toast('❌ Server connection error: ' + err.message, 'error');
+    if (statusEl) { statusEl.style.color = '#f87171'; statusEl.textContent = '✕ Connection error'; }
+  } finally {
+    testBtn.disabled = false;
+    testBtn.textContent = '🔍 Test Gmail Connection';
+  }
+}
+
+async function testOutlookConnection() {
+  const smtpUser = document.getElementById('smtp-outlook-user').value.trim();
+  const smtpPass = document.getElementById('smtp-outlook-pass').value.trim().replace(/\s+/g, '');
+  const smtpHost = document.getElementById('smtp-outlook-host').value.trim() || 'smtp.office365.com';
+  const smtpPort = parseInt(document.getElementById('smtp-outlook-port').value, 10) || 587;
+  const statusEl = document.getElementById('outlook-test-status');
+  const testBtn  = document.getElementById('btn-test-outlook');
+
+  if (!smtpUser || !smtpPass) {
+    toast('Please enter your Outlook email address and password', 'warn');
+    return;
+  }
+
+  testBtn.disabled = true;
+  testBtn.textContent = '⏳ Testing…';
+  if (statusEl) { statusEl.style.color = 'var(--accent)'; statusEl.textContent = 'Connecting to Outlook…'; }
+
+  try {
+    const resp = await fetch('/api/test-smtp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ smtpUser, smtpPass, smtpHost, smtpPort })
+    });
+    const result = await resp.json();
+    if (result.success) {
+      toast('✅ ' + result.message, 'success');
+      if (statusEl) { statusEl.style.color = '#34d399'; statusEl.textContent = '✓ Outlook Verified'; }
+      saveDirectSendSettings();
+    } else {
+      toast('❌ ' + (result.error || 'Authentication failed'), 'error');
+      if (statusEl) { statusEl.style.color = '#f87171'; statusEl.textContent = '✕ Test failed'; }
+    }
+  } catch (err) {
+    toast('❌ Server connection error: ' + err.message, 'error');
+    if (statusEl) { statusEl.style.color = '#f87171'; statusEl.textContent = '✕ Connection error'; }
+  } finally {
+    testBtn.disabled = false;
+    testBtn.textContent = '🔍 Test Outlook Connection';
+  }
+}
+
+// ══════════════════════════════════════════════
+//  MULTI-SELECT & BRAND DETAILS COMPONENT
+// ══════════════════════════════════════════════
+function renderMSOptions(id, options) {
+  const container = document.getElementById('ms-opts-' + id);
+  container.innerHTML = options.map(opt => `
+    <div class="ms-opt" onclick="this.querySelector('input').click()">
+      <input type="checkbox" value="${esc(opt)}" onchange="onMSChange('${id}')" onclick="event.stopPropagation()"/>
+      <span>${esc(opt)}</span>
+    </div>`).join('');
+}
+
+function toggleMS(id) {
+  const dropdown = document.getElementById('ms-opts-' + id);
+  const arrow    = document.getElementById('ms-arrow-' + id);
+  const display  = document.querySelector(`#ms-wrap-${id} .ms-display`);
+  const isOpen   = dropdown.classList.contains('open');
+
+  document.querySelectorAll('.ms-dropdown.open').forEach(d => {
+    const did = d.id.replace('ms-opts-','');
+    d.classList.remove('open');
+    document.getElementById('ms-arrow-' + did)?.classList.remove('rot');
+    document.querySelector(`#ms-wrap-${did} .ms-display`)?.classList.remove('open');
+  });
+
+  if (!isOpen) {
+    dropdown.classList.add('open');
+    arrow.classList.add('rot');
+    display.classList.add('open');
+  }
+}
+
+function onMSChange(id) {
+  updateMSDisplay(id);
+  if (id === 'interests') {
+    const selected = getMSValues('interests');
+    syncBrandDetailInputs(selected);
+  }
+}
+
+function syncBrandDetailInputs(selectedBrands, brandDetailsMap = {}) {
+  const container = document.getElementById('interest-brand-details');
+  if (!container) return;
+
+  // Collect any current values from existing inputs
+  const currentValues = { ...brandDetailsMap };
+  container.querySelectorAll('.brand-detail-input').forEach(inp => {
+    const b = inp.getAttribute('data-brand');
+    if (b && inp.value) currentValues[b] = inp.value;
+  });
+
+  // Rebuild / update container for currently selected brands
+  if (!selectedBrands || !selectedBrands.length) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = selectedBrands.map(b => {
+    const val = currentValues[b] || '';
+    const placeholder = b === 'Others' ? 'Specify other brand name & requirements…' : `Notes / specific model / requirement for ${esc(b)}…`;
+    return `
+      <div class="brand-detail-row">
+        <span class="brand-tag">${esc(b)}</span>
+        <input type="text" class="brand-detail-input" data-brand="${esc(b)}" value="${esc(val)}" placeholder="${placeholder}" />
+      </div>`;
+  }).join('');
+}
+
+function getMSValues(id) {
+  return Array.from(
+    document.querySelectorAll(`#ms-opts-${id} input[type="checkbox"]:checked`)
+  ).map(cb => cb.value);
+}
+
+function setMSValues(id, values, brandDetailsMap = {}) {
+  document.querySelectorAll(`#ms-opts-${id} input[type="checkbox"]`).forEach(cb => {
+    cb.checked = values.includes(cb.value);
+  });
+  updateMSDisplay(id);
+  if (id === 'interests') {
+    syncBrandDetailInputs(values, brandDetailsMap);
+  }
+}
+
+function updateMSDisplay(id) {
+  const vals   = getMSValues(id);
+  const textEl = document.getElementById('ms-text-' + id);
+  const ph     = id === 'interests' ? 'Select brands…' : 'Select…';
+  if (vals.length === 0) { textEl.textContent = ph; textEl.classList.add('ph'); }
+  else { textEl.textContent = vals.join(', '); textEl.classList.remove('ph'); }
+}
+
+// ══════════════════════════════════════════════
+//  API KEY
+// ══════════════════════════════════════════════
+function saveApiKey() {
+  const v = document.getElementById('apiKeyInput').value.trim();
+  if (!v) { toast('Enter your Gemini API key first', 'error'); return; }
+  localStorage.setItem('gemini_api_key', v);
+  updateApiStatus(true);
+  toast('Gemini API key saved ✓', 'success');
+}
+function updateApiStatus(ok) {
+  const el = document.getElementById('apiStatus');
+  if (el) {
+    el.textContent = ok ? '✓ Key Set' : 'Not set';
+    el.className = 'api-status ' + (ok ? 'ok' : 'bad');
+  }
+  const headerStatus = document.getElementById('headerApiStatus');
+  if (headerStatus) {
+    headerStatus.textContent = ok ? 'API Key ✓' : 'API Key ⚠️';
+    headerStatus.style.color = ok ? '#34d399' : '#f87171';
+  }
+}
+function toggleKeyVis() {
+  const i = document.getElementById('apiKeyInput');
+  if (i) i.type = i.type === 'password' ? 'text' : 'password';
+}
+function getApiKey() { return localStorage.getItem('gemini_api_key') || ''; }
+
+// ══════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  btn.classList.add('active');
+  if (tab !== 'camera' && stream) stopCamera();
+}
+
+// ══════════════════════════════════════════════
+//  CAMERA
+// ══════════════════════════════════════════════
+async function startCamera() {
+  try {
+    if (stream) stopCamera();
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false
+    });
+    document.getElementById('videoEl').srcObject = stream;
+    document.getElementById('startCamBtn').style.display = 'none';
+    document.getElementById('flipCamBtn').style.display  = '';
+    document.getElementById('captureBtn').style.display  = '';
+    document.getElementById('stopCamBtn').style.display  = '';
+    document.getElementById('capturedPreview').style.display = 'none';
+    document.getElementById('retakeBtn').style.display = 'none';
+    toast('Camera started — align card in frame', 'success');
+  } catch(err) {
+    toast('Camera error: ' + err.message, 'error');
+  }
+}
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById('startCamBtn').style.display = '';
+  document.getElementById('flipCamBtn').style.display  = 'none';
+  document.getElementById('captureBtn').style.display  = 'none';
+  document.getElementById('stopCamBtn').style.display  = 'none';
+}
+function flipCamera() { facingMode = facingMode === 'environment' ? 'user' : 'environment'; startCamera(); }
+
+async function capturePhoto() {
+  const video  = document.getElementById('videoEl');
+  const canvas = document.createElement('canvas');
+  canvas.width  = video.videoWidth  || 1280;
+  canvas.height = video.videoHeight || 720;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  activeImageB64 = dataUrl.split(',')[1];
+  activeMime     = 'image/jpeg';
+  activeSource   = 'Webcam';
+  const prev = document.getElementById('capturedPreview');
+  prev.src   = dataUrl; prev.style.display = 'block';
+  document.getElementById('captureBtn').style.display = 'none';
+  document.getElementById('retakeBtn').style.display  = '';
+  stopCamera();
+  // Automatically scan the captured image
+  await scanCard();
+}
+
+function retakePhoto() {
+  document.getElementById('capturedPreview').style.display = 'none';
+  document.getElementById('retakeBtn').style.display = 'none';
+  activeImageB64 = null;
+  startCamera();
+}
+
+// ══════════════════════════════════════════════
+//  FILE UPLOAD
+// ══════════════════════════════════════════════
+function onFileSelect(e) { const f = e.target.files[0]; if (f) loadFile(f); }
+function onDragOver(e)   { e.preventDefault(); document.getElementById('uploadZone').classList.add('drag'); }
+function onDragLeave()   { document.getElementById('uploadZone').classList.remove('drag'); }
+function onDrop(e) {
+  e.preventDefault(); document.getElementById('uploadZone').classList.remove('drag');
+  const f = e.dataTransfer.files[0]; if (f) loadFile(f);
+}
+function loadFile(file) {
+  if (!file.type.startsWith('image/')) { toast('Please select an image file', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = async e => {
+    const dataUrl = e.target.result;
+    activeImageB64 = dataUrl.split(',')[1];
+    activeMime     = file.type || 'image/jpeg';
+    activeSource   = 'Upload';
+    const prev = document.getElementById('uploadPreview');
+    prev.src = dataUrl; prev.style.display = 'block';
+    // Automatically scan the uploaded image
+    await scanCard();
+  };
+  reader.readAsDataURL(file);
+}
+
+// ══════════════════════════════════════════════
+//  GEMINI API
+// ══════════════════════════════════════════════
+async function scanCard() {
+  if (!activeImageB64) { toast('No image loaded', 'error'); return; }
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    toast('Please configure your Gemini API Key in Settings ⚙️', 'error');
+    const placeholder = document.getElementById('reviewPlaceholder');
+    placeholder.style.display = '';
+    placeholder.innerHTML = `
+      <div class="icon">🔑</div>
+      <p style="color:var(--warn)">Please enter and save your Gemini API Key in Settings ⚙️ to scan.</p>
+      <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="openSettings('api-key')">⚙️ Open Settings</button>
+    `;
+    openSettings('api-key');
+    return;
+  }
+
+  const placeholder = document.getElementById('reviewPlaceholder');
+  const reviewForm  = document.getElementById('reviewForm');
+  reviewForm.style.display = 'none';
+  placeholder.style.display = '';
+  placeholder.innerHTML = `
+    <div class="spinner" style="width:28px;height:28px;border-width:3px;border-top-color:var(--accent);margin:0 auto 12px"></div>
+    <p style="color:var(--accent);font-weight:600">Scanning with Gemini Vision AI…</p>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">Extracting contact &amp; company details</p>
+  `;
+  toast('Scanning card with AI…', 'info');
+
+  try {
+    const data = await callGeminiVision(activeImageB64, activeMime, apiKey);
+    populateReviewForm(data);
+    checkDuplicate(data);
+    toast('Card scanned! Review and save.', 'success');
+  } catch(err) {
+    placeholder.innerHTML = `
+      <div class="icon">⚠️</div>
+      <p style="color:var(--danger)">Scan failed: ${esc(err.message)}</p>
+      <p style="font-size:.78rem;color:var(--muted);margin-top:4px">Click Retake or upload a clearer photo.</p>
+    `;
+    toast('Scan failed: ' + err.message, 'error');
+    console.error(err);
+  }
+}
+
+let cachedAvailableModels = null;
+
+async function getAvailableGeminiModels(apiKey) {
+  if (cachedAvailableModels && cachedAvailableModels.length) {
+    return cachedAvailableModels;
+  }
+  const defaultList = [
+    'gemini-3-flash-preview',
+    'gemini-3.1-pro-preview',
+    'gemini-3.1-flash-lite-preview',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash'
+  ];
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.models && Array.isArray(data.models)) {
+        const supported = data.models
+          .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+          .map(m => m.name.replace(/^models\//, ''));
+        
+        // Sort supported models prioritizing latest 3.x, 2.5, flash, pro
+        const priorityScore = (name) => {
+          if (name.includes('gemini-3-flash')) return 100;
+          if (name.includes('gemini-3.1-pro')) return 95;
+          if (name.includes('gemini-3.1-flash')) return 90;
+          if (name.includes('gemini-3')) return 85;
+          if (name.includes('gemini-2.5-flash')) return 80;
+          if (name.includes('gemini-2.0-flash')) return 75;
+          if (name.includes('gemini-2.5-pro')) return 70;
+          if (name.includes('flash')) return 60;
+          if (name.includes('pro')) return 50;
+          return 10;
+        };
+        
+        supported.sort((a, b) => priorityScore(b) - priorityScore(a));
+        if (supported.length > 0) {
+          cachedAvailableModels = supported;
+          return supported;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch models list, using defaults:', e);
+  }
+  cachedAvailableModels = defaultList;
+  return defaultList;
+}
+
+async function callGeminiVision(base64, mimeType, apiKey) {
+  const models = await getAvailableGeminiModels(apiKey);
+  const prompt =
+`You are a business card OCR expert. Extract all visible text from this business card image into structured JSON.
+Return ONLY a raw JSON object — no markdown, no code fences.
+Required structure:
+{
+  "name": "Full name",
+  "designation": "Job title",
+  "company": "Company name",
+  "mobile": "Mobile / cell phone number (M:) or null",
+  "phone": "Telephone / landline office phone number (T:, Tel:, Ph:) or null",
+  "phone2": "Secondary / alternate phone number or null",
+  "fax": "Fax number (F:, Fax:) or null",
+  "email": ["ALL emails as array"],
+  "website": "Website URL or null",
+  "city": "City or null",
+  "pincode": "Pin code / Postal code or null",
+  "address": "Complete address as single string or null"
+}
+Rules: Return ONLY the JSON. Use null for missing fields. email MUST be an array.
+Preserve number formatting exactly. Do NOT guess data not visible on the card.`;
+
+  const payload = {
+    contents: [{
+      parts: [
+        {
+          inlineData: {
+            mimeType: mimeType,
+            data: base64
+          }
+        },
+        { text: prompt }
+      ]
+    }],
+    generationConfig: {
+      temperature: 0.05,
+      maxOutputTokens: 2048,
+      responseMimeType: 'application/json'
+    }
+  };
+
+  let lastError = null;
+  // Try up to top 5 compatible models
+  for (const model of models.slice(0, 6)) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        const errMsg = err?.error?.message || `HTTP ${resp.status}`;
+        console.warn(`Model ${model} error: ${errMsg}. Trying next model...`);
+        lastError = new Error(errMsg);
+        continue;
+      }
+      const body = await resp.json();
+      const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) {
+        lastError = new Error('Empty response from model ' + model);
+        continue;
+      }
+      return parseCardData(text);
+    } catch (err) {
+      console.warn(`Error calling ${model}: ${err.message}. Trying next model...`);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('All Gemini vision models are temporarily busy. Please try again in a few moments.');
+}
+
+function parseCardData(text) {
+  let t = text.trim().replace(/^```json\s*/i,'').replace(/\s*```$/i,'').replace(/^```\s*/i,'').replace(/\s*```$/i,'').trim();
+  const data = JSON.parse(t);
+  if (data.email !== null && !Array.isArray(data.email)) data.email = [data.email];
+  if (!data.email) data.email = [];
+  return data;
+}
+
+// ══════════════════════════════════════════════
+//  REVIEW FORM — POPULATE
+// ══════════════════════════════════════════════
+function populateReviewForm(data) {
+  // Contact
+  document.getElementById('f-name').value        = data.name        || '';
+  document.getElementById('f-designation').value = data.designation || '';
+  document.getElementById('f-company').value     = data.company     || '';
+  document.getElementById('f-website').value     = data.website     || '';
+
+  // Numbers
+  let mob = data.mobile || '';
+  let ph  = data.phone  || '';
+  let ph2 = data.phone2 || '';
+  let fx  = data.fax    || '';
+  if (!mob && !ph && data.phone && Array.isArray(data.phone)) {
+    mob = data.phone[0] || '';
+    ph  = data.phone[1] || '';
+    ph2 = data.phone.slice(2).join(', ') || '';
+  }
+  document.getElementById('f-mobile').value      = mob;
+  document.getElementById('f-phone').value       = ph;
+  document.getElementById('f-phone2').value      = ph2;
+  document.getElementById('f-fax').value         = fx;
+  document.getElementById('f-email').value       = (data.email || []).join(', ');
+  document.getElementById('f-address').value     = data.address || '';
+  document.getElementById('f-city').value        = data.city || '';
+  document.getElementById('f-pincode').value     = data.pincode || '';
+  document.getElementById('f-state').value       = '';
+
+  // Show info — keep existing show date and name if present, reset attendee for new scan
+  if (data.showName || data.show_name) {
+    document.getElementById('f-show-name').value = data.showName || data.show_name;
+  } else if (!document.getElementById('f-show-name').value) {
+    document.getElementById('f-show-name').value = 'IMTEX 2025';
+  }
+  const today = new Date().toISOString().split('T')[0];
+  if (!document.getElementById('f-show-date').value) {
+    document.getElementById('f-show-date').value = today;
+  }
+  document.getElementById('f-attended-by').value = data.attendedBy || '';
+
+  // Business — clear
+  document.getElementById('f-customer-type').value = '';
+  document.getElementById('f-customer-type-other').value = '';
+  document.getElementById('f-customer-type-other').classList.remove('show');
+  document.getElementById('f-customer-product').value = data.customerProduct || '';
+  document.getElementById('f-department').value = data.department || '';
+  document.getElementById('f-followup').value   = data.followUp || '';
+  setMSValues('interests', []);
+  document.getElementById('ar-urgent').checked    = false;
+  document.getElementById('ar-literature').checked = false;
+  document.getElementById('f-catalogue').value = data.catalogue || '';
+  document.getElementById('f-notes').value     = data.notes || data.remarks || '';
+
+  document.getElementById('reviewPlaceholder').style.display = 'none';
+  document.getElementById('reviewForm').style.display = '';
+  editingIndex = null;
+  document.getElementById('reviewPanel').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// ══════════════════════════════════════════════
+//  REVIEW FORM — READ
+// ══════════════════════════════════════════════
+function readReviewForm() {
+  const customerType = document.getElementById('f-customer-type').value;
+  const customerTypeOther = document.getElementById('f-customer-type-other').value.trim();
+
+  const selectedBrands = getMSValues('interests');
+  const interests = selectedBrands.map(b => {
+    const detailInp = document.querySelector(`.brand-detail-input[data-brand="${b}"]`);
+    const detail = detailInp ? detailInp.value.trim() : '';
+    return detail ? `${b}: ${detail}` : b;
+  });
+
+  const actionRequired = [];
+  if (document.getElementById('ar-urgent').checked)    actionRequired.push('Urgent Sales Visit');
+  if (document.getElementById('ar-literature').checked) actionRequired.push('Product Literature / Introduction Letter');
+
+  return {
+    name:               document.getElementById('f-name').value.trim(),
+    designation:        document.getElementById('f-designation').value.trim(),
+    company:            document.getElementById('f-company').value.trim(),
+    website:            document.getElementById('f-website').value.trim(),
+    mobile:             document.getElementById('f-mobile').value.trim(),
+    phone:              document.getElementById('f-phone').value.trim(),
+    phone2:             document.getElementById('f-phone2').value.trim(),
+    fax:                document.getElementById('f-fax').value.trim(),
+    email:              document.getElementById('f-email').value.trim(),
+    city:               document.getElementById('f-city').value.trim(),
+    pincode:            document.getElementById('f-pincode').value.trim(),
+    state:              document.getElementById('f-state').value,
+    address:            document.getElementById('f-address').value.trim(),
+    showName:           (document.getElementById('f-show-name') ? document.getElementById('f-show-name').value.trim() : '') || 'IMTEX 2025',
+    showDate:           document.getElementById('f-show-date').value,
+    attendedBy:         document.getElementById('f-attended-by').value,
+    customerType:       customerType === 'Others' && customerTypeOther ? `Others: ${customerTypeOther}` : customerType,
+    customerProduct:    document.getElementById('f-customer-product').value.trim(),
+    department:         document.getElementById('f-department').value,
+    followUp:           document.getElementById('f-followup').value,
+    interestIn:         interests,
+    actionRequired:     actionRequired,
+    catalogue:          document.getElementById('f-catalogue').value.trim(),
+    notes:              document.getElementById('f-notes').value.trim(),
+    source:             activeSource,
+    timestamp:          new Date().toISOString()
+  };
+}
+
+// ══════════════════════════════════════════════
+//  CONDITIONAL FIELDS
+// ══════════════════════════════════════════════
+function onCustomerTypeChange() {
+  const val = document.getElementById('f-customer-type').value;
+  document.getElementById('f-customer-type-other').classList.toggle('show', val === 'Others');
+  if (val !== 'Others') document.getElementById('f-customer-type-other').value = '';
+}
+
+// ══════════════════════════════════════════════
+//  DUPLICATE CHECK
+// ══════════════════════════════════════════════
+function checkDuplicate(data) {
+  const rawPhones = [];
+  if (typeof data.mobile === 'string' && data.mobile) rawPhones.push(data.mobile);
+  if (typeof data.phone === 'string' && data.phone) rawPhones.push(data.phone);
+  if (typeof data.phone2 === 'string' && data.phone2) rawPhones.push(data.phone2);
+  if (Array.isArray(data.phone)) rawPhones.push(...data.phone);
+  if (Array.isArray(data.phones)) rawPhones.push(...data.phones);
+
+  const phones = rawPhones.map(p => String(p).replace(/\D/g,'')).filter(p => p.length > 5);
+  const rawEmails = Array.isArray(data.email) ? data.email : (data.email ? [data.email] : []);
+  const emails = rawEmails.map(e => String(e).toLowerCase().trim()).filter(Boolean);
+
+  const dup = cards.find(c => {
+    const cm = (c.mobile || '').replace(/\D/g,'');
+    const cp = (c.phone  || '').replace(/\D/g,'');
+    const cp2 = (c.phone2 || '').replace(/\D/g,'');
+    const ce = (c.email  || '').toLowerCase().trim().split(',').map(s=>s.trim());
+    const phoneHit = phones.some(p => (cm.length > 5 && p.slice(-8) === cm.slice(-8)) ||
+                                      (cp.length > 5 && p.slice(-8) === cp.slice(-8)) ||
+                                      (cp2.length > 5 && p.slice(-8) === cp2.slice(-8)));
+    const emailHit = emails.some(e => ce.includes(e));
+    return phoneHit || emailHit;
+  });
+  const warn = document.getElementById('dupWarn');
+  const info = document.getElementById('dupInfo');
+  if (dup) {
+    info.textContent = `${dup.name || 'Unknown'} from ${dup.company || 'Unknown'} already scanned.`;
+    warn.classList.add('show');
+  } else {
+    warn.classList.remove('show');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  SAVE
+// ══════════════════════════════════════════════
+function saveCard() {
+  const data = readReviewForm();
+  if (!data.name && !data.company && !data.mobile && !data.email) {
+    toast('Fill in at least one field before saving', 'error'); return;
+  }
+  if (editingIndex !== null) {
+    data.timestamp = cards[editingIndex].timestamp;
+    cards[editingIndex] = data;
+    toast('Card updated ✓', 'success');
+  } else {
+    cards.push(data);
+    toast('Card saved ✓ — ' + (data.name || data.company || 'Contact'), 'success');
+  }
+  persistCards();
+  renderTable();
+  clearReview();
+}
+
+function persistCards() {
+  const today = new Date().toLocaleDateString();
+  localStorage.setItem('bcs_cards_' + today, JSON.stringify(cards));
+}
+
+function clearReview() {
+  const placeholder = document.getElementById('reviewPlaceholder');
+  placeholder.style.display = '';
+  placeholder.innerHTML = `
+    <div class="icon">🤖</div>
+    <p>Scan a business card to see extracted details here.</p>
+  `;
+  document.getElementById('reviewForm').style.display = 'none';
+  document.getElementById('dupWarn').classList.remove('show');
+  activeImageB64 = null;
+  editingIndex   = null;
+  document.getElementById('capturedPreview').style.display = 'none';
+  document.getElementById('uploadPreview').style.display   = 'none';
+}
+
+// ══════════════════════════════════════════════
+//  EMAIL COMPOSE & SEND MODAL
+// ══════════════════════════════════════════════
+function sendEmail(card) {
+  openEmailModal(card);
+}
+
+function openEmailModal(card) {
+  const c = card || readReviewForm();
+  activeEmailCard = c;
+
+  const to = c.email || '';
+  document.getElementById('em-to').value = to;
+
+  populateEmailTemplatesSelect();
+  onEmailTemplateChange();
+
+  document.getElementById('emailModal').classList.add('show');
+}
+
+function closeEmailModal() {
+  document.getElementById('emailModal').classList.remove('show');
+}
+
+function populateEmailTemplatesSelect() {
+  const select = document.getElementById('em-template-select');
+  const tpls = (settings.templates && settings.templates.length) ? settings.templates : DEFAULT_TEMPLATES;
+  select.innerHTML = tpls.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+}
+
+function onEmailTemplateChange() {
+  const select = document.getElementById('em-template-select');
+  const tplId = select.value;
+  const tpls = (settings.templates && settings.templates.length) ? settings.templates : DEFAULT_TEMPLATES;
+  const tpl = tpls.find(t => t.id === tplId) || tpls[0];
+  if (!tpl) return;
+
+  const card = activeEmailCard || readReviewForm();
+  document.getElementById('em-subject').value = replacePlaceholders(tpl.subject, card);
+  document.getElementById('em-body').value    = replacePlaceholders(tpl.body, card);
+  document.getElementById('em-footer').value  = replacePlaceholders(tpl.footer || '', card);
+}
+
+function replacePlaceholders(text, card) {
+  if (!text) return '';
+  let interestStr = '';
+  if (Array.isArray(card.interestIn)) {
+    interestStr = card.interestIn.map(i => {
+      if (typeof i === 'string' && i.includes(':')) {
+        const parts = i.split(':');
+        return `${parts[0].trim()} (${parts.slice(1).join(':').trim()})`;
+      }
+      return i;
+    }).join(', ');
+  } else {
+    interestStr = card.interestIn || '';
+  }
+  const showDateStr = card.showDate || new Date().toISOString().split('T')[0];
+  const salesPersonStr = card.attendedBy || 'Our Team';
+
+  return text
+    .replace(/\{Visitor Name\}|\{name\}/gi, card.name || 'Sir/Madam')
+    .replace(/\{Company Name\}|\{company\}/gi, card.company || 'your company')
+    .replace(/\{Designation\}|\{designation\}/gi, card.designation || '')
+    .replace(/\{Interest In\}|\{interestIn\}/gi, interestStr || 'our products')
+    .replace(/\{Customer Product\}|\{customerProduct\}/gi, card.customerProduct || 'your applications')
+    .replace(/\{Department\}|\{department\}/gi, card.department || '')
+    .replace(/\{Our Sales Person\}|\{Attended By\}|\{attendedBy\}/gi, salesPersonStr)
+    .replace(/\{Day of Show\}|\{showDate\}/gi, showDateStr);
+}
+
+function getFullEmailPayload() {
+  const to = document.getElementById('em-to').value.trim();
+  const subject = document.getElementById('em-subject').value.trim();
+  const body = document.getElementById('em-body').value.trim();
+  const footer = document.getElementById('em-footer').value.trim();
+  let fullBody = body;
+  if (footer) {
+    fullBody = body ? `${body}\n\n--\n${footer}` : footer;
+  }
+  return { to, subject, body, footer, fullBody };
+}
+
+async function sendDirectlyGmail() {
+  const { to, subject, body, footer } = getFullEmailPayload();
+  const btn = document.getElementById('btn-send-gmail-direct');
+  if (!to) { toast('Please enter a recipient email address', 'warn'); return; }
+
+  const ds = settings.directSend || {};
+  const gmailUser = ds.gmailUser || (ds.provider === 'gmail' ? ds.smtpUser : '') || '';
+  const gmailPass = ds.gmailPass || (ds.provider === 'gmail' ? ds.smtpPass : '') || '';
+
+  if (!gmailUser || !gmailPass) {
+    toast('Please enter your Gmail address & 16-character App Password in Settings ⚙️', 'warn');
+    closeEmailModal();
+    openSettings('direct-send');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> Sending via Gmail…';
+
+  try {
+    const payload = {
+      to,
+      subject: subject || 'Follow-Up',
+      body,
+      footer,
+      smtpUser: gmailUser,
+      smtpPass: gmailPass,
+      senderName: ds.senderName || '',
+      smtpHost: 'smtp.gmail.com',
+      smtpPort: 587
+    };
+
+    const resp = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await resp.json();
+    if (result.success) {
+      toast(`✅ Email sent directly to ${to} via Gmail!`, 'success');
+      btn.innerHTML = '<span>✅</span> Sent!';
+      setTimeout(() => {
+        closeEmailModal();
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚡</span> Send via Gmail';
+      }, 1400);
+    } else {
+      toast(`❌ Gmail send failed: ${result.error || 'Check credentials in Settings'}`, 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<span>⚡</span> Send via Gmail';
+    }
+  } catch (err) {
+    toast(`❌ Connection error: ${err.message}`, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<span>⚡</span> Send via Gmail';
+  }
+}
+
+function sendViaGmailWeb() {
+  const { to, subject, fullBody } = getFullEmailPayload();
+  if (!to) { toast('Please enter a recipient email address', 'warn'); return; }
+  const encTo = encodeURIComponent(to);
+  const encSu = encodeURIComponent(subject);
+  const encBody = encodeURIComponent(fullBody);
+  const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encTo}&su=${encSu}&body=${encBody}`;
+  window.open(url, '_blank');
+  toast('Opening Gmail Compose tab ↗', 'info');
+}
+
+async function sendDirectlyOutlook() {
+  const { to, subject, body, footer } = getFullEmailPayload();
+  const btn = document.getElementById('btn-send-outlook-direct');
+  if (!to) { toast('Please enter a recipient email address', 'warn'); return; }
+
+  const ds = settings.directSend || {};
+  const outlookUser = ds.outlookUser || (ds.provider !== 'gmail' ? ds.smtpUser : '') || '';
+  const outlookPass = ds.outlookPass || (ds.provider !== 'gmail' ? ds.smtpPass : '') || '';
+  const outlookHost = ds.outlookHost || 'smtp.office365.com';
+  const outlookPort = ds.outlookPort || 587;
+
+  if (!outlookUser || !outlookPass) {
+    toast('Please enter your Outlook / Microsoft 365 credentials in Settings ⚙️', 'warn');
+    closeEmailModal();
+    openSettings('direct-send');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> Sending via Outlook…';
+
+  try {
+    const payload = {
+      to,
+      subject: subject || 'Follow-Up',
+      body,
+      footer,
+      smtpUser: outlookUser,
+      smtpPass: outlookPass,
+      senderName: ds.senderName || '',
+      smtpHost: outlookHost,
+      smtpPort: outlookPort
+    };
+
+    const resp = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await resp.json();
+    if (result.success) {
+      toast(`✅ Email sent directly to ${to} via Outlook!`, 'success');
+      btn.innerHTML = '<span>✅</span> Sent!';
+      setTimeout(() => {
+        closeEmailModal();
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚡</span> Send via Outlook';
+      }, 1400);
+    } else {
+      toast(`❌ Outlook send failed: ${result.error || 'Check credentials in Settings'}`, 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<span>⚡</span> Send via Outlook';
+    }
+  } catch (err) {
+    toast(`❌ Connection error: ${err.message}`, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<span>⚡</span> Send via Outlook';
+  }
+}
+
+function sendViaOutlookWeb() {
+  const { to, subject, fullBody } = getFullEmailPayload();
+  if (!to) { toast('Please enter a recipient email address', 'warn'); return; }
+  const encTo = encodeURIComponent(to);
+  const encSu = encodeURIComponent(subject);
+  const encBody = encodeURIComponent(fullBody);
+  const url = `https://outlook.live.com/mail/0/deeplink/compose?to=${encTo}&subject=${encSu}&body=${encBody}`;
+  window.open(url, '_blank');
+  toast('Opening Outlook Web Compose ↗', 'info');
+}
+
+async function sendViaOutlookApp() {
+  const { to, subject, fullBody, body, footer } = getFullEmailPayload();
+  if (!to) { toast('Please enter a recipient email address', 'warn'); return; }
+
+  toast('Opening Microsoft Outlook Desktop App…', 'info');
+  try {
+    const resp = await fetch('/api/open-outlook-desktop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, subject, body, footer })
+    });
+    const res = await resp.json();
+    if (res.success) {
+      toast('Opened in Microsoft Outlook Desktop App ✓', 'success');
+    } else {
+      const encSu = encodeURIComponent(subject);
+      const encBody = encodeURIComponent(fullBody);
+      window.location.href = `mailto:${to}?subject=${encSu}&body=${encBody}`;
+    }
+  } catch (err) {
+    const encSu = encodeURIComponent(subject);
+    const encBody = encodeURIComponent(fullBody);
+    window.location.href = `mailto:${to}?subject=${encSu}&body=${encBody}`;
+  }
+}
+
+function copyEmailText() {
+  const { to, subject, fullBody } = getFullEmailPayload();
+  const fullText = `To: ${to}\nSubject: ${subject}\n\n${fullBody}`;
+  navigator.clipboard.writeText(fullText).then(() => {
+    toast('Email text & footer copied to clipboard ✓', 'success');
+  }).catch(() => {
+    toast('Could not copy text', 'error');
+  });
+}
+
+// ══════════════════════════════════════════════
+//  QUESTIONNAIRE FORM (HARD COPY PRINT & DOCX)
+// ══════════════════════════════════════════════
+let activeQuestionnaireCard = null;
+
+function getCardDataFromForm() {
+  const brandDetails = [];
+  document.querySelectorAll('.brand-detail-input').forEach(inp => {
+    const brand = inp.getAttribute('data-brand');
+    const val = inp.value.trim();
+    if (val) brandDetails.push(`${brand}: ${val}`);
+    else brandDetails.push(brand);
+  });
+
+  const actions = [];
+  if (document.getElementById('ar-urgent')?.checked) actions.push('Urgent Sales Visit');
+  if (document.getElementById('ar-literature')?.checked) actions.push('Product Literature / Introduction Letter');
+
+  const msVals = (typeof getMSValues === 'function') ? getMSValues('interests') : [];
+
+  return {
+    name:            document.getElementById('f-name').value.trim(),
+    company:         document.getElementById('f-company').value.trim(),
+    designation:     document.getElementById('f-designation').value.trim(),
+    address:         document.getElementById('f-address').value.trim(),
+    city:            document.getElementById('f-city').value.trim(),
+    pincode:         document.getElementById('f-pincode').value.trim(),
+    state:           document.getElementById('f-state').value.trim(),
+    phone:           document.getElementById('f-phone').value.trim(),
+    phone2:          document.getElementById('f-phone2').value.trim(),
+    fax:             document.getElementById('f-fax').value.trim(),
+    email:           document.getElementById('f-email').value.trim(),
+    website:         document.getElementById('f-website').value.trim(),
+    showName:        (document.getElementById('f-show-name') ? document.getElementById('f-show-name').value.trim() : '') || 'IMTEX 2025',
+    showDate:        document.getElementById('f-show-date').value,
+    attendedBy:      document.getElementById('f-attended-by').value,
+    customerType:    document.getElementById('f-customer-type').value === 'Others'
+                       ? (document.getElementById('f-customer-type-other').value.trim() || 'Others')
+                       : document.getElementById('f-customer-type').value,
+    customerProduct: document.getElementById('f-customer-product').value.trim(),
+    department:      document.getElementById('f-department').value,
+    interestIn:      brandDetails.length ? brandDetails : msVals,
+    actionRequired:  actions,
+    followUp:        (document.getElementById('f-followup')?.value || document.getElementById('f-follow-up')?.value || ''),
+    catalogue:       document.getElementById('f-catalogue').value.trim(),
+    notes:           document.getElementById('f-notes').value.trim()
+  };
+}
+
+function openQuestionnaireModal(card) {
+  const data = card || getCardDataFromForm();
+  activeQuestionnaireCard = data;
+
+  if (!data.name && !data.company) {
+    toast('Please capture or fill visitor details first', 'warn');
+    return;
+  }
+
+  renderQuestionnaireSheet(data);
+  document.getElementById('questionnaireModal').classList.add('show');
+}
+
+function closeQuestionnaireModal() {
+  document.getElementById('questionnaireModal').classList.remove('show');
+  activeQuestionnaireCard = null;
+}
+
+function formatDateDMY(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr.replace(/-/g, '/');
+}
+
+function renderQuestionnaireSheet(data) {
+  const container = document.getElementById('questionnaire-print-area');
+  const city = data.city || '';
+  const state = data.state || '';
+  const selectedLoc = state || city || '';
+
+  let locDisplay = '';
+  for (const loc of ['Mumbai', 'Chennai', 'Bengaluru']) {
+    if (selectedLoc.toLowerCase().includes(loc.toLowerCase())) {
+      locDisplay = loc;
+      break;
+    }
+  }
+  if (!locDisplay && selectedLoc) locDisplay = selectedLoc;
+
+  // Map all interests dynamically
+  const interestMap = {};
+  const customBrands = [];
+  (data.interestIn || []).forEach(item => {
+    if (item.includes(':')) {
+      const [k, v] = item.split(':', 2);
+      const kClean = k.trim();
+      interestMap[kClean.toUpperCase()] = v.trim();
+      if (!customBrands.some(b => b.toUpperCase() === kClean.toUpperCase())) {
+        customBrands.push(kClean);
+      }
+    } else {
+      const kClean = item.trim();
+      interestMap[kClean.toUpperCase()] = 'Yes';
+      if (!customBrands.some(b => b.toUpperCase() === kClean.toUpperCase())) {
+        customBrands.push(kClean);
+      }
+    }
+  });
+
+  const baseBrands = ['INA', 'FAG', 'NSK', 'THK', 'TPI', 'BMD', 'SLF'];
+  const allBrands = [...baseBrands];
+  customBrands.forEach(b => {
+    if (!allBrands.some(x => x.toUpperCase() === b.toUpperCase()) && b.toUpperCase() !== 'OTHERS') {
+      allBrands.push(b);
+    }
+  });
+  allBrands.push('Others');
+
+  const brandsHtml = allBrands.map(b => {
+    const note = interestMap[b.toUpperCase()] || '';
+    const isFilled = Boolean(note);
+    const valText = isFilled ? esc(note) : '______________________________________________________________________________';
+    return `<div class="q-brand-item">
+      <span class="q-brand-name">${esc(b)}:</span>
+      <span class="q-brand-val" style="${isFilled ? 'color:#000080;font-weight:400' : 'color:#94a3b8'}">${valText}</span>
+    </div>`;
+  }).join('');
+
+  let custType = data.customerType || '—';
+  if (custType && custType.toLowerCase().startsWith('others')) {
+    const otherDetail = custType.substring(6).replace(/^[:\s-]+/, '').trim();
+    custType = otherDetail ? `Others - ${otherDetail}` : 'Others - ';
+  }
+
+  const dept = data.department || '—';
+  const acts = data.actionRequired || [];
+  const followUp = data.followUp || '—';
+  const showDateFormatted = formatDateDMY(data.showDate) || '—';
+  const showName = esc(data.showName || data.show_name || 'IMTEX 2025');
+
+  container.innerHTML = `
+    <div class="q-header">
+      <div>
+        <img src="image1.png" style="height:44px;object-fit:contain" alt="Durga Logo" />
+      </div>
+      <div style="text-align:right;min-width:140px">
+        <div style="font-size:17px;font-weight:700;color:#000000">${esc(locDisplay)}</div>
+      </div>
+    </div>
+
+    <div class="q-two-col">
+      <!-- Left: Visitor Information (Single cell rows, no vertical divider) -->
+      <div>
+        <table class="q-table">
+          <tr><td><strong class="q-lbl">Name of the Show:</strong> <span class="q-val">${showName}</span></td></tr>
+          <tr><td><strong class="q-lbl">Visitor Name:</strong> <span class="q-val">${esc(data.name || '—')}</span></td></tr>
+          <tr><td><strong class="q-lbl">Company Name:</strong> <span class="q-val">${esc(data.company || '—')}</span></td></tr>
+          <tr><td><strong class="q-lbl">Designation:</strong> <span class="q-val">${esc(data.designation || '—')}</span></td></tr>
+          <tr><td><strong class="q-lbl">Address:</strong> <span class="q-val" style="white-space:pre-wrap">${esc(data.address || '—')}</span></td></tr>
+          <tr>
+            <td>
+              <strong class="q-lbl">City:</strong> <span class="q-val">${esc(data.city || '—')}</span>&nbsp;&nbsp;&nbsp;&nbsp;<strong class="q-lbl">Pin Code:</strong> <span class="q-val">${esc(data.pincode || '—')}</span>
+            </td>
+          </tr>
+          <tr><td><strong class="q-lbl">Phone:</strong> <span class="q-val">${esc(data.phone || data.phone2 || '—')}</span></td></tr>
+          <tr><td><strong class="q-lbl">Mobile No:</strong> <span class="q-val">${esc(data.mobile || '—')}</span></td></tr>
+          <tr><td><strong class="q-lbl">Email:</strong> <span class="q-val" style="word-break:break-all">${esc(data.email || '—')}</span></td></tr>
+        </table>
+      </div>
+
+      <!-- Right: Show Details & Customer Profile (Single cell rows, no vertical divider) -->
+      <div>
+        <table class="q-table">
+          <tr><td style="text-align:center;font-weight:700;font-size:16px;color:#000000;padding:4px">${showName}</td></tr>
+          <tr><td><strong class="q-lbl">Day of the show:</strong> <span class="q-val">${esc(showDateFormatted)}</span></td></tr>
+          <tr><td><strong class="q-lbl">Customer Type:</strong> <span class="q-val">${esc(custType)}</span></td></tr>
+          <tr>
+            <td>
+              <strong class="q-lbl">Customer's Product:</strong>
+              <div class="q-val" style="white-space:pre-wrap;margin-top:2px">${esc(data.customerProduct || '—')}</div>
+            </td>
+          </tr>
+          <tr><td><strong class="q-lbl">Department:</strong> <span class="q-val">${esc(dept)}</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Interest in Box -->
+    <div class="q-box">
+      <div class="q-box-title">Interest in</div>
+      <div class="q-brands-list">
+        ${brandsHtml}
+      </div>
+    </div>
+
+    <!-- Action Required Box (Inline Values Beside Label) -->
+    <div class="q-box" style="display:flex;align-items:baseline;gap:8px">
+      <div class="q-box-title" style="margin-bottom:0;flex-shrink:0">Action Required:</div>
+      <div style="font-size:14.5px;padding:0;font-weight:400;color:#000080;text-align:left">
+        ${acts.length ? acts.map(a => esc(a)).join(' &nbsp;&nbsp;|&nbsp;&nbsp; ') : '<span style="color:#888">_____________________________________________________________________</span>'}
+      </div>
+    </div>
+
+    <!-- Follow Up & Catalogue Box (2-column layout with multi-line wrapping) -->
+    <div class="q-box" style="display:grid;grid-template-columns:1fr 1.6fr;gap:12px;align-items:start">
+      <div>
+        <strong class="q-lbl">Follow Up:</strong>&nbsp;
+        <span class="q-val">${esc(followUp)}</span>
+      </div>
+      <div style="word-break:break-word">
+        <strong class="q-lbl">Product Catalogue Issued:</strong>&nbsp;
+        <span class="q-val">${esc(data.catalogue || '—')}</span>
+      </div>
+    </div>
+
+    <!-- Remarks Box -->
+    <div class="q-box">
+      <div class="q-box-title" style="margin-bottom:2px">Remarks:</div>
+      <div class="q-remarks-text" style="min-height:28px;text-align:left;padding:1px 0;margin:0">${esc((data.notes || '').trim() || '—')}</div>
+    </div>
+
+    <!-- Attended By Box -->
+    <div class="q-box" style="margin-bottom:0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <strong>Attended by:</strong> <span class="q-val">${esc(data.attendedBy || '—')}</span>
+      </div>
+      <div style="color:#64748b;font-size:13px">
+        Durga Bearings Co. Pvt. Ltd.
+      </div>
+    </div>
+  `;
+}
+
+function printQuestionnaire() {
+  window.print();
+}
+
+async function downloadQuestionnaireDocx(card) {
+  const data = card || activeQuestionnaireCard || getCardDataFromForm();
+  if (!data.name && !data.company) {
+    toast('Please capture or fill visitor details first', 'warn');
+    return;
+  }
+
+  toast('Generating QUESTIONARE FORM 2025.docx…', 'info');
+  try {
+    const resp = await fetch('/api/fill-questionnaire', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || 'Server returned status ' + resp.status);
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safeName = (data.name || 'Visitor').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeComp = (data.company || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_');
+    a.href = url;
+    a.download = `Questionnaire_${safeName}_${safeComp}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Word document (.docx) downloaded ✓', 'success');
+  } catch (err) {
+    toast('❌ Error generating Word docx: ' + err.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  TABLE
+// ══════════════════════════════════════════════
+function renderTable() {
+  const tbody = document.getElementById('cardsTableBody');
+  document.getElementById('cardCount').textContent = cards.length;
+  if (!cards.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No cards scanned yet. Start by capturing a card! 🪪</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cards.map((c, i) => {
+    const time     = new Date(c.timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    const interest = (c.interestIn || []).join(', ') || '—';
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${time}</td>
+      <td>
+        <div class="td-name">${esc(c.name || '—')}</div>
+        <div class="td-sub">${esc(c.designation || '')}</div>
+      </td>
+      <td><span class="td-badge">${esc(c.company || '—')}</span></td>
+      <td>${esc(c.mobile || c.phone || '—')}</td>
+      <td style="font-size:.72rem">${esc(c.email || '—')}</td>
+      <td style="font-size:.72rem;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(interest)}">${esc(interest)}</td>
+      <td>${c.followUp ? `<span class="td-badge">${esc(c.followUp)}</span>` : '—'}</td>
+      <td>
+        <div class="flex-gap">
+          <button class="btn btn-ghost btn-xs" onclick="openQuestionnaireModal(cards[${i}])" title="Print Questionnaire Form">🖨️</button>
+          <button class="btn btn-ghost btn-xs" onclick="downloadQuestionnaireDocx(cards[${i}])" title="Download Word Doc (.docx)">📄</button>
+          <button class="btn btn-ghost btn-xs" onclick="editCard(${i})" title="Edit card">✏️</button>
+          <button class="btn btn-primary btn-xs" onclick="openEmailModal(cards[${i}])" title="Send email">📧</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteCard(${i})" title="Delete card">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function editCard(i) {
+  const c = cards[i];
+  // Contact
+  document.getElementById('f-name').value        = c.name        || '';
+  document.getElementById('f-designation').value = c.designation || '';
+  document.getElementById('f-company').value     = c.company     || '';
+  document.getElementById('f-website').value     = c.website     || '';
+  document.getElementById('f-mobile').value      = c.mobile      || '';
+  document.getElementById('f-phone').value       = c.phone       || '';
+  document.getElementById('f-phone2').value      = c.phone2      || '';
+  document.getElementById('f-fax').value         = c.fax         || '';
+  document.getElementById('f-email').value       = c.email       || '';
+  document.getElementById('f-city').value        = c.city        || '';
+  document.getElementById('f-pincode').value     = c.pincode     || '';
+  document.getElementById('f-state').value       = c.state       || '';
+  document.getElementById('f-address').value     = c.address     || '';
+  // Show
+  document.getElementById('f-show-name').value  = c.showName || c.show_name || 'IMTEX 2025';
+  document.getElementById('f-show-date').value  = c.showDate    || '';
+  document.getElementById('f-attended-by').value = c.attendedBy || '';
+  // Business
+  const rawCT = c.customerType || '';
+  if (rawCT.startsWith('Others:')) {
+    document.getElementById('f-customer-type').value = 'Others';
+    document.getElementById('f-customer-type-other').value = rawCT.replace('Others:','').trim();
+    document.getElementById('f-customer-type-other').classList.add('show');
+  } else {
+    document.getElementById('f-customer-type').value = rawCT;
+    document.getElementById('f-customer-type-other').value = '';
+    document.getElementById('f-customer-type-other').classList.remove('show');
+  }
+  document.getElementById('f-customer-product').value = c.customerProduct || '';
+  document.getElementById('f-department').value = c.department || '';
+  document.getElementById('f-followup').value   = c.followUp   || '';
+
+  // Interest In & details
+  const interests = (c.interestIn || []);
+  const selectedBrands = [];
+  const brandDetailsMap = {};
+
+  interests.forEach(item => {
+    if (typeof item === 'string' && item.includes(':')) {
+      const idx = item.indexOf(':');
+      const b = item.substring(0, idx).trim();
+      const d = item.substring(idx + 1).trim();
+      selectedBrands.push(b);
+      brandDetailsMap[b] = d;
+    } else {
+      selectedBrands.push(item);
+    }
+  });
+
+  setMSValues('interests', selectedBrands, brandDetailsMap);
+
+  // Action Required
+  const ar = c.actionRequired || [];
+  document.getElementById('ar-urgent').checked    = ar.includes('Urgent Sales Visit');
+  document.getElementById('ar-literature').checked = ar.includes('Product Literature / Introduction Letter');
+
+  document.getElementById('f-catalogue').value = c.catalogue || '';
+  document.getElementById('f-notes').value     = c.notes || c.remarks || '';
+
+  document.getElementById('reviewPlaceholder').style.display = 'none';
+  document.getElementById('reviewForm').style.display = '';
+  document.getElementById('dupWarn').classList.remove('show');
+  editingIndex = i;
+  document.getElementById('reviewPanel').scrollIntoView({ behavior:'smooth', block:'start' });
+  toast('Editing card — make changes and click Save', 'warn');
+}
+
+function deleteCard(i) {
+  if (!confirm(`Delete "${cards[i].name || 'this card'}"?`)) return;
+  cards.splice(i,1);
+  persistCards();
+  renderTable();
+  toast('Card deleted', 'warn');
+}
+
+// ══════════════════════════════════════════════
+//  CSV EXPORT
+// ══════════════════════════════════════════════
+function exportCSV() {
+  if (!cards.length) { toast('No cards to export yet', 'warn'); return; }
+  const headers = [
+    'Timestamp','Visitor Name','Designation','Company Name',
+    'Mobile Number','Telephone','Phone Number','Fax Number','Email','Website',
+    'City','Pin Code','State','Address',
+    'Day of Show','Our Sales Person',
+    'Customer Type','Customer Product','Department',
+    'Interest In','Action Required','Follow Up',
+    'Product Catalogue Used','Notes / Remarks','Source'
+  ];
+  const rows = cards.map(c => [
+    new Date(c.timestamp).toLocaleString(),
+    c.name || '', c.designation || '', c.company || '',
+    c.mobile || '', c.phone || '', c.phone2 || '', c.fax || '', c.email || '', c.website || '',
+    c.city || '', c.pincode || '', c.state || '', c.address || '',
+    c.showDate || '', c.attendedBy || '',
+    c.customerType || '', c.customerProduct || '', c.department || '',
+    (c.interestIn || []).join(' | '),
+    (c.actionRequired || []).join(' | '),
+    c.followUp || '',
+    c.catalogue || '', c.notes || c.remarks || '', c.source || ''
+  ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','));
+
+  const csv  = [headers.join(','), ...rows].join('\r\n');
+  const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toLocaleDateString('en-GB').replace(/\//g,'-');
+  a.href = url; a.download = `BusinessCards_${date}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  toast(`Exported ${cards.length} card(s) ✓`, 'success');
+}
+
+// ══════════════════════════════════════════════
+//  CLEAR SESSION
+// ══════════════════════════════════════════════
+function showClearModal() { document.getElementById('clearModal').classList.add('show'); }
+function hideClearModal() { document.getElementById('clearModal').classList.remove('show'); }
+function clearSession() {
+  const today = new Date().toLocaleDateString();
+  localStorage.removeItem('bcs_cards_' + today);
+  cards = []; renderTable(); hideClearModal(); clearReview();
+  toast('Session cleared', 'warn');
+}
+
+// ══════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════
+function toast(msg, type='success') {
+  const icons = { success:'✅', error:'❌', warn:'⚠️', info:'🔍' };
+  const cleanMsg = String(msg).replace(/^[✅❌⚠️🔍💬]\s*/, '');
+  const c  = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span style="font-size:1.1rem;line-height:1">${icons[type]||'💬'}</span><span>${cleanMsg}</span>`;
+  c.appendChild(el);
+  setTimeout(() => { el.style.animation='slideOut .3s ease forwards'; setTimeout(()=>el.remove(),300); }, 3500);
+}
+
+// ══════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Close modals on overlay click
+document.getElementById('clearModal').addEventListener('click', function(e) { if(e.target===this) hideClearModal(); });
+document.getElementById('settingsModal').addEventListener('click', function(e) { if(e.target===this) closeSettings(); });
+document.getElementById('emailModal').addEventListener('click', function(e) { if(e.target===this) closeEmailModal(); });
+document.getElementById('questionnaireModal').addEventListener('click', function(e) { if(e.target===this) closeQuestionnaireModal(); });
+</script>
+</body>
+</html>
