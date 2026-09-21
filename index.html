@@ -1085,6 +1085,19 @@ tbody td { padding: 8px 10px; vertical-align: middle; }
   </div>
 </div>
 
+<!-- Quit Server Modal -->
+<div class="modal-overlay" id="quitModal">
+  <div class="modal-box">
+    <div class="icon">⏹️</div>
+    <h3>Stop Background Server?</h3>
+    <p>This will shut down the server process and free port 8080.<br><br>All connected devices (phone/laptop) will be disconnected.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="hideQuitModal()">Cancel</button>
+      <button class="btn btn-danger" id="btnConfirmQuit" onclick="confirmQuitServer()">⏹ Yes, Stop Server</button>
+    </div>
+  </div>
+</div>
+
 <!-- Send Email Modal -->
 <div class="modal-overlay" id="emailModal">
   <div class="modal-box email-box">
@@ -1284,23 +1297,47 @@ function copyPhoneUrl() {
   }
 }
 
-async function quitServer() {
-  if (!confirm('Are you sure you want to stop the server?\n\nThis will terminate the background process.')) return;
-  toast('Stopping server…', 'info');
-  try {
-    await fetch('/api/shutdown', { method: 'POST' });
-  } catch (_) {}
+function showQuitModal() {
+  document.getElementById('quitModal').classList.add('show');
+}
+
+function hideQuitModal() {
+  document.getElementById('quitModal').classList.remove('show');
+}
+
+function quitServer() {
+  showQuitModal();
+}
+
+async function confirmQuitServer() {
+  const btn = document.getElementById('btnConfirmQuit');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Stopping…';
+  }
+
+  // 1. Immediately fire shutdown requests through multiple mechanisms
+  try { navigator.sendBeacon('/api/shutdown'); } catch (_) {}
+  try { fetch('/api/shutdown', { method: 'POST' }); } catch (_) {}
+  try { fetch('/api/shutdown'); } catch (_) {}
+
+  try { toast('Stopping server…', 'info'); } catch (_) {}
+
+  // 2. Immediately replace document body with clear stopped screen
   document.body.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#fff;font-family:system-ui,-apple-system,sans-serif;text-align:center;padding:24px">
-      <div style="font-size:3.5rem;margin-bottom:14px">⏹️</div>
-      <h2 style="font-size:1.7rem;margin-bottom:10px;font-weight:700">Server Stopped Successfully</h2>
-      <p style="color:#94a3b8;font-size:1rem;max-width:440px;line-height:1.5;margin-bottom:24px">
-        The background server process has been cleanly shut down. You can safely close this browser window.
+      <div style="font-size:4rem;margin-bottom:16px">⏹️</div>
+      <h2 style="font-size:2rem;margin-bottom:12px;font-weight:700;color:#f87171">Server Stopped Successfully</h2>
+      <p style="color:#94a3b8;font-size:1.05rem;max-width:480px;line-height:1.6;margin-bottom:28px">
+        The background Python server process has terminated and port 8080 is released.<br>
+        You can safely close this browser window.
       </p>
-      <button style="padding:10px 24px;border-radius:8px;border:none;background:#3b82f6;color:#fff;cursor:pointer;font-size:1rem;font-weight:600" onclick="window.close()">Close Window</button>
+      <button style="padding:12px 28px;border-radius:8px;border:none;background:#3b82f6;color:#fff;cursor:pointer;font-size:1rem;font-weight:600" onclick="window.close()">Close Window</button>
     </div>
   `;
-  setTimeout(() => { window.close(); }, 1200);
+  setTimeout(() => {
+    try { window.close(); } catch (_) {}
+  }, 800);
 }
 
 // ══════════════════════════════════════════════
@@ -3162,14 +3199,21 @@ function clearSession() {
 //  TOAST
 // ══════════════════════════════════════════════
 function toast(msg, type='success') {
-  const icons = { success:'✅', error:'❌', warn:'⚠️', info:'🔍' };
-  const cleanMsg = String(msg).replace(/^[✅❌⚠️🔍💬]\s*/, '');
-  const c  = document.getElementById('toastContainer');
-  const el = document.createElement('div');
-  el.className = `toast ${type}`;
-  el.innerHTML = `<span style="font-size:1.1rem;line-height:1">${icons[type]||'💬'}</span><span>${cleanMsg}</span>`;
-  c.appendChild(el);
-  setTimeout(() => { el.style.animation='slideOut .3s ease forwards'; setTimeout(()=>el.remove(),300); }, 3500);
+  try {
+    const icons = { success:'✅', error:'❌', warn:'⚠️', info:'🔍' };
+    const cleanMsg = String(msg).replace(/^[✅❌⚠️🔍💬]\s*/, '');
+    let c = document.getElementById('toastContainer');
+    if (!c) {
+      c = document.createElement('div');
+      c.id = 'toastContainer';
+      document.body.appendChild(c);
+    }
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `<span style="font-size:1.1rem;line-height:1">${icons[type]||'💬'}</span><span>${cleanMsg}</span>`;
+    c.appendChild(el);
+    setTimeout(() => { el.style.animation='slideOut .3s ease forwards'; setTimeout(()=>el.remove(),300); }, 3500);
+  } catch (_) {}
 }
 
 // ══════════════════════════════════════════════
@@ -3180,10 +3224,12 @@ function esc(str) {
 }
 
 // Close modals on overlay click
+document.getElementById('quitModal').addEventListener('click', function(e) { if(e.target===this) hideQuitModal(); });
 document.getElementById('clearModal').addEventListener('click', function(e) { if(e.target===this) hideClearModal(); });
 document.getElementById('settingsModal').addEventListener('click', function(e) { if(e.target===this) closeSettings(); });
 document.getElementById('emailModal').addEventListener('click', function(e) { if(e.target===this) closeEmailModal(); });
 document.getElementById('questionnaireModal').addEventListener('click', function(e) { if(e.target===this) closeQuestionnaireModal(); });
 </script>
+<div id="toastContainer"></div>
 </body>
 </html>

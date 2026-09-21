@@ -753,6 +753,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
         super().end_headers()
 
     def do_OPTIONS(self):
@@ -771,6 +774,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             })
         elif self.path == '/api/cards':
             self.send_json_response(200, load_server_cards())
+        elif self.path == '/api/shutdown':
+            self.handle_shutdown()
         else:
             super().do_GET()
 
