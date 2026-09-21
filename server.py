@@ -697,6 +697,7 @@ def fill_questionnaire_docx(card_data, output_path=None):
     return buf.getvalue()
 
 SETTINGS_FILE = os.path.join(DIRECTORY, "server_settings.json")
+CARDS_FILE    = os.path.join(DIRECTORY, "scanned_cards.json")
 
 def load_server_settings():
     if os.path.exists(SETTINGS_FILE):
@@ -706,6 +707,31 @@ def load_server_settings():
         except Exception:
             pass
     return {}
+
+def save_server_settings(data):
+    try:
+        with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception:
+        return False
+
+def load_server_cards():
+    if os.path.exists(CARDS_FILE):
+        try:
+            with open(CARDS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+def save_server_cards(cards_list):
+    try:
+        with open(CARDS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cards_list, f, indent=2)
+        return True
+    except Exception:
+        return False
 
 def get_local_ip():
     try:
@@ -717,14 +743,6 @@ def get_local_ip():
         return ip
     except Exception:
         return "192.168.1.24"
-
-def save_server_settings(data):
-    try:
-        with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2)
-        return True
-    except Exception:
-        return False
 
 class AppHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -751,12 +769,18 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 'port': PORT,
                 'url': f'http://{local_ip}:{PORT}'
             })
+        elif self.path == '/api/cards':
+            self.send_json_response(200, load_server_cards())
         else:
             super().do_GET()
 
     def do_POST(self):
         if self.path == '/api/settings':
             self.handle_save_settings()
+        elif self.path == '/api/cards':
+            self.handle_save_cards()
+        elif self.path == '/api/shutdown':
+            self.handle_shutdown()
         elif self.path == '/api/send-email':
             self.handle_send_email()
         elif self.path == '/api/test-smtp':
@@ -779,6 +803,55 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json_response(200, {'success': True})
         except Exception as e:
             self.send_json_response(500, {'success': False, 'error': str(e)})
+
+    def handle_save_cards(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode('utf-8'))
+
+            if isinstance(data, list):
+                save_server_cards(data)
+                self.send_json_response(200, {'success': True, 'cards': data})
+            elif isinstance(data, dict):
+                cards = load_server_cards()
+                action = data.get('action', 'sync')
+                if action == 'save':
+                    card = data.get('card')
+                    idx = data.get('index')
+                    if card:
+                        if idx is not None and isinstance(idx, int) and 0 <= idx < len(cards):
+                            cards[idx] = card
+                        else:
+                            cards.insert(0, card)
+                        save_server_cards(cards)
+                elif action == 'delete':
+                    idx = data.get('index')
+                    if idx is not None and isinstance(idx, int) and 0 <= idx < len(cards):
+                        cards.pop(idx)
+                        save_server_cards(cards)
+                elif action == 'clear':
+                    cards = []
+                    save_server_cards(cards)
+                elif action == 'sync_all':
+                    new_cards = data.get('cards', [])
+                    if isinstance(new_cards, list):
+                        cards = new_cards
+                        save_server_cards(cards)
+                self.send_json_response(200, {'success': True, 'cards': cards})
+            else:
+                self.send_json_response(400, {'success': False, 'error': 'Invalid cards data format'})
+        except Exception as e:
+            self.send_json_response(500, {'success': False, 'error': str(e)})
+
+    def handle_shutdown(self):
+        self.send_json_response(200, {'success': True, 'message': 'Server shutting down'})
+        def stop():
+            import time
+            time.sleep(0.5)
+            os._exit(0)
+        import threading
+        threading.Thread(target=stop, daemon=True).start()
 
     def handle_send_email(self):
         try:

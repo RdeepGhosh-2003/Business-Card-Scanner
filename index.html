@@ -616,6 +616,7 @@ tbody td { padding: 8px 10px; vertical-align: middle; }
     <button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙️ Settings</button>
     <button class="btn btn-ghost btn-sm" onclick="showClearModal()">🗑️ Clear</button>
     <button class="btn btn-success btn-sm" onclick="exportCSV()">⬇️ Export CSV</button>
+    <button class="btn btn-danger btn-sm" onclick="quitServer()" title="Stop the background server and close the app">⏹ Quit Server</button>
   </div>
 </header>
 
@@ -1283,6 +1284,25 @@ function copyPhoneUrl() {
   }
 }
 
+async function quitServer() {
+  if (!confirm('Are you sure you want to stop the server?\n\nThis will terminate the background process.')) return;
+  toast('Stopping server…', 'info');
+  try {
+    await fetch('/api/shutdown', { method: 'POST' });
+  } catch (_) {}
+  document.body.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#fff;font-family:system-ui,-apple-system,sans-serif;text-align:center;padding:24px">
+      <div style="font-size:3.5rem;margin-bottom:14px">⏹️</div>
+      <h2 style="font-size:1.7rem;margin-bottom:10px;font-weight:700">Server Stopped Successfully</h2>
+      <p style="color:#94a3b8;font-size:1rem;max-width:440px;line-height:1.5;margin-bottom:24px">
+        The background server process has been cleanly shut down. You can safely close this browser window.
+      </p>
+      <button style="padding:10px 24px;border-radius:8px;border:none;background:#3b82f6;color:#fff;cursor:pointer;font-size:1rem;font-weight:600" onclick="window.close()">Close Window</button>
+    </div>
+  `;
+  setTimeout(() => { window.close(); }, 1200);
+}
+
 // ══════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════
@@ -1300,12 +1320,64 @@ function copyPhoneUrl() {
   // Settings
   loadSettings();
 
-  // Today's cards
+  // Load cards with cross-device server sync
   const today = new Date().toLocaleDateString();
-  const stored = localStorage.getItem('bcs_cards_' + today);
-  if (stored) {
-    try { cards = JSON.parse(stored); renderTable(); } catch(_) {}
+  fetch('/api/cards')
+    .then(r => r.ok ? r.json() : null)
+    .then(srvCards => {
+      if (Array.isArray(srvCards) && srvCards.length > 0) {
+        cards = srvCards;
+        persistCards(false);
+        renderTable();
+      } else {
+        const stored = localStorage.getItem('bcs_cards_' + today);
+        if (stored) {
+          try {
+            cards = JSON.parse(stored);
+            renderTable();
+            if (cards.length > 0) {
+              fetch('/api/cards', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'sync_all', cards: cards })
+              }).catch(() => {});
+            }
+          } catch(_) {}
+        }
+      }
+    }).catch(() => {
+      const stored = localStorage.getItem('bcs_cards_' + today);
+      if (stored) {
+        try { cards = JSON.parse(stored); renderTable(); } catch(_) {}
+      }
+    });
+
+  // Real-time multi-device sync polling
+  let isSyncingCards = false;
+  async function pollServerCards() {
+    if (isSyncingCards || editingIndex !== null) return;
+    try {
+      isSyncingCards = true;
+      const res = await fetch('/api/cards');
+      if (res.ok) {
+        const srvCards = await res.json();
+        if (Array.isArray(srvCards)) {
+          const currentStr = JSON.stringify(cards);
+          const srvStr = JSON.stringify(srvCards);
+          if (currentStr !== srvStr) {
+            cards = srvCards;
+            persistCards(false);
+            renderTable();
+          }
+        }
+      }
+    } catch (_) {}
+    finally {
+      isSyncingCards = false;
+    }
   }
+  setInterval(pollServerCards, 3000);
+  window.addEventListener('focus', pollServerCards);
 
   // Set default show date to today
   const today_iso = new Date().toISOString().split('T')[0];
@@ -1391,6 +1463,25 @@ function loadSettings() {
   } else {
     settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
   }
+
+  // Cross-device settings sync from server
+  fetch('/api/settings')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (data && data.bcs_settings) {
+        settings = {
+          interests: data.bcs_settings.interests || settings.interests,
+          attendees: data.bcs_settings.attendees || settings.attendees,
+          templates: data.bcs_settings.templates || settings.templates,
+          directSend: { ...settings.directSend, ...(data.bcs_settings.directSend || {}) }
+        };
+        localStorage.setItem('bcs_settings', JSON.stringify(settings));
+        renderMSOptions('interests', settings.interests);
+        renderAttendeeSelect();
+        loadDirectSendUI();
+      }
+    }).catch(() => {});
+
   renderMSOptions('interests', settings.interests);
   renderAttendeeSelect();
   loadDirectSendUI();
@@ -1398,6 +1489,11 @@ function loadSettings() {
 
 function saveSettingsData() {
   localStorage.setItem('bcs_settings', JSON.stringify(settings));
+  fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bcs_settings: settings })
+  }).catch(() => {});
 }
 
 function openSettings(targetTab) {
@@ -2331,9 +2427,16 @@ function saveCard() {
   clearReview();
 }
 
-function persistCards() {
+function persistCards(syncServer = true) {
   const today = new Date().toLocaleDateString();
   localStorage.setItem('bcs_cards_' + today, JSON.stringify(cards));
+  if (syncServer) {
+    fetch('/api/cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'sync_all', cards: cards })
+    }).catch(() => {});
+  }
 }
 
 function clearReview() {
@@ -3045,7 +3148,13 @@ function hideClearModal() { document.getElementById('clearModal').classList.remo
 function clearSession() {
   const today = new Date().toLocaleDateString();
   localStorage.removeItem('bcs_cards_' + today);
-  cards = []; renderTable(); hideClearModal(); clearReview();
+  cards = [];
+  fetch('/api/cards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'clear' })
+  }).catch(() => {});
+  renderTable(); hideClearModal(); clearReview();
   toast('Session cleared', 'warn');
 }
 
