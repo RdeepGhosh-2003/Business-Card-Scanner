@@ -3,4 +3,5 @@ __pycache__/
 test_*.docx
 final_validated_doc.docx
 scanned_cards.json
+server_settings.json
 *.log
