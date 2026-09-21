@@ -562,7 +562,38 @@ tbody td { padding: 8px 10px; vertical-align: middle; }
 .conditional-field { display: none; margin-top: 6px; }
 .conditional-field.show { display: block; }
 .flex-gap { display: flex; gap: 6px; flex-wrap: wrap; }
-.mt-4 { margin-top: 4px; }
+.btn-phone {
+  background: rgba(99, 102, 241, 0.16);
+  border: 1px solid rgba(99, 102, 241, 0.45);
+  color: #c7d2fe;
+  font-size: 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 13px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-phone:hover {
+  background: rgba(99, 102, 241, 0.3);
+  border-color: #818cf8;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.phone-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+  animation: pulse-green 2s infinite;
+}
+@keyframes pulse-green {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
 </style>
 </head>
 <body>
@@ -575,6 +606,10 @@ tbody td { padding: 8px 10px; vertical-align: middle; }
     <p>Powered by Gemini Vision AI</p>
   </div>
   <div class="header-actions">
+    <button class="btn btn-phone" id="btnPhoneAccess" onclick="openPhoneModal()" title="Click to view QR code or link to open on phone">
+      <span class="phone-pulse"></span>
+      <span>📱 Phone:</span> <strong id="headerPhoneUrl">http://192.168.1.24:8080</strong>
+    </button>
     <button class="btn btn-ghost btn-sm" onclick="openSettings('api-key')">
       🔑 <span id="headerApiStatus">API Key</span>
     </button>
@@ -781,6 +816,7 @@ tbody td { padding: 8px 10px; vertical-align: middle; }
         <div class="cam-label">Align business card within the frame</div>
       </div>
       <img id="capturedPreview" src="" alt="Captured"/>
+      <input type="file" id="mobileCamInput" accept="image/*" capture="environment" style="display:none" onchange="onMobileCamSelect(event)"/>
       <div class="cam-controls">
         <button class="btn btn-primary btn-sm" id="startCamBtn" onclick="startCamera()">▶️ Start Camera</button>
         <button class="btn btn-ghost   btn-sm" id="flipCamBtn"  onclick="flipCamera()"   style="display:none">🔄 Flip</button>
@@ -1014,7 +1050,26 @@ tbody td { padding: 8px 10px; vertical-align: middle; }
 
 </div><!-- /main -->
 
-<div id="toastContainer"></div>
+<!-- Phone / Wi-Fi Access Modal -->
+<div class="modal-overlay" id="phoneModal">
+  <div class="modal-box" style="max-width:380px;text-align:center">
+    <div style="font-size:2.2rem;margin-bottom:6px">📱</div>
+    <h3 style="margin-bottom:4px">Open on Your Phone</h3>
+    <p style="color:var(--muted);font-size:0.82rem;margin-bottom:14px">
+      Make sure your phone is connected to the same Wi-Fi network.
+    </p>
+    <div style="background:#ffffff;padding:12px;border-radius:12px;display:inline-block;margin-bottom:14px;box-shadow:0 4px 12px rgba(0,0,0,0.3)">
+      <img id="phoneQrImg" src="" alt="QR Code" style="width:180px;height:180px;display:block;border-radius:6px"/>
+    </div>
+    <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);padding:8px 12px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px">
+      <span id="modalPhoneUrl" style="font-family:monospace;font-size:0.85rem;color:#93c5fd;word-break:break-all">http://192.168.1.24:8080</span>
+      <button class="btn btn-ghost btn-xs" onclick="copyPhoneUrl()" title="Copy Link">📋 Copy</button>
+    </div>
+    <div class="modal-actions" style="justify-content:center">
+      <button class="btn btn-primary btn-sm" onclick="closePhoneModal()">Got it ✓</button>
+    </div>
+  </div>
+</div>
 
 <!-- Clear Modal -->
 <div class="modal-overlay" id="clearModal">
@@ -1193,6 +1248,40 @@ let settings          = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 let editingTemplateId = null;
 let activeEmailCard   = null;
 let activeInputForTag = 'tpl-body-input';
+let currentNetworkUrl = 'http://192.168.1.24:8080';
+
+function updatePhoneUrlDisplay(url) {
+  currentNetworkUrl = url;
+  const headerEl = document.getElementById('headerPhoneUrl');
+  if (headerEl) headerEl.textContent = url;
+  const modalEl = document.getElementById('modalPhoneUrl');
+  if (modalEl) modalEl.textContent = url;
+  const qrImg = document.getElementById('phoneQrImg');
+  if (qrImg) {
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
+  }
+}
+
+function openPhoneModal() {
+  updatePhoneUrlDisplay(currentNetworkUrl);
+  document.getElementById('phoneModal').classList.add('show');
+}
+
+function closePhoneModal() {
+  document.getElementById('phoneModal').classList.remove('show');
+}
+
+function copyPhoneUrl() {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(currentNetworkUrl).then(() => {
+      toast('Link copied: ' + currentNetworkUrl, 'success');
+    }).catch(() => {
+      prompt('Copy this link for your phone:', currentNetworkUrl);
+    });
+  } else {
+    prompt('Copy this link for your phone:', currentNetworkUrl);
+  }
+}
 
 // ══════════════════════════════════════════════
 //  INIT
@@ -1221,6 +1310,55 @@ let activeInputForTag = 'tpl-body-input';
   // Set default show date to today
   const today_iso = new Date().toISOString().split('T')[0];
   document.getElementById('f-show-date').value = today_iso;
+
+  // Adapt camera controls for mobile / insecure HTTP context
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    const startBtn = document.getElementById('startCamBtn');
+    if (startBtn) startBtn.innerHTML = '📸 Take Photo (Camera)';
+    const camLabel = document.querySelector('.cam-label');
+    if (camLabel) camLabel.textContent = 'Tap to take photo with phone camera';
+    const camWrap = document.querySelector('.camera-wrap');
+    if (camWrap) {
+      camWrap.style.cursor = 'pointer';
+      camWrap.onclick = () => {
+        if (!stream) document.getElementById('mobileCamInput').click();
+      };
+    }
+  }
+
+  // Auto-sync settings & API key with server
+  fetch('/api/settings')
+    .then(r => r.ok ? r.json() : null)
+    .then(srvData => {
+      if (srvData && srvData.gemini_api_key) {
+        if (!localStorage.getItem('gemini_api_key')) {
+          localStorage.setItem('gemini_api_key', srvData.gemini_api_key);
+          const el = document.getElementById('apiKeyInput');
+          if (el) el.value = srvData.gemini_api_key;
+          updateApiStatus(true);
+        }
+      } else {
+        const localKey = localStorage.getItem('gemini_api_key');
+        if (localKey) {
+          fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gemini_api_key: localKey })
+          }).catch(() => {});
+        }
+      }
+    }).catch(() => {});
+
+  // Dynamic network URL detection
+  fetch('/api/network-info')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (data && data.url) {
+        updatePhoneUrlDisplay(data.url);
+      }
+    }).catch(() => {
+      updatePhoneUrlDisplay('http://192.168.1.24:8080');
+    });
 
   // Close multiselect on outside click
   document.addEventListener('click', function(e) {
@@ -1689,6 +1827,11 @@ function saveApiKey() {
   const v = document.getElementById('apiKeyInput').value.trim();
   if (!v) { toast('Enter your Gemini API key first', 'error'); return; }
   localStorage.setItem('gemini_api_key', v);
+  fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gemini_api_key: v })
+  }).catch(() => {});
   updateApiStatus(true);
   toast('Gemini API key saved ✓', 'success');
 }
@@ -1725,6 +1868,10 @@ function switchTab(tab, btn) {
 //  CAMERA
 // ══════════════════════════════════════════════
 async function startCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    document.getElementById('mobileCamInput').click();
+    return;
+  }
   try {
     if (stream) stopCamera();
     stream = await navigator.mediaDevices.getUserMedia({
@@ -1739,8 +1886,30 @@ async function startCamera() {
     document.getElementById('retakeBtn').style.display = 'none';
     toast('Camera started — align card in frame', 'success');
   } catch(err) {
-    toast('Camera error: ' + err.message, 'error');
+    console.warn('getUserMedia failed, falling back to native mobile camera:', err);
+    document.getElementById('mobileCamInput').click();
   }
+}
+
+function onMobileCamSelect(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = async evt => {
+    const dataUrl = evt.target.result;
+    activeImageB64 = dataUrl.split(',')[1];
+    activeMime     = f.type || 'image/jpeg';
+    activeSource   = 'Phone Camera';
+    const prev = document.getElementById('capturedPreview');
+    prev.src = dataUrl;
+    prev.style.display = 'block';
+    document.getElementById('startCamBtn').style.display = 'none';
+    document.getElementById('retakeBtn').style.display = '';
+    toast('Card photo captured! Scanning with AI…', 'info');
+    await scanCard();
+  };
+  reader.readAsDataURL(f);
+  e.target.value = '';
 }
 function stopCamera() {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
@@ -1774,7 +1943,12 @@ function retakePhoto() {
   document.getElementById('capturedPreview').style.display = 'none';
   document.getElementById('retakeBtn').style.display = 'none';
   activeImageB64 = null;
-  startCamera();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    document.getElementById('startCamBtn').style.display = '';
+    document.getElementById('mobileCamInput').click();
+  } else {
+    startCamera();
+  }
 }
 
 // ══════════════════════════════════════════════

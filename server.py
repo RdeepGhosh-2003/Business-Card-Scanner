@@ -696,6 +696,36 @@ def fill_questionnaire_docx(card_data, output_path=None):
     buf.seek(0)
     return buf.getvalue()
 
+SETTINGS_FILE = os.path.join(DIRECTORY, "server_settings.json")
+
+def load_server_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def get_local_ip():
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "192.168.1.24"
+
+def save_server_settings(data):
+    try:
+        with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception:
+        return False
+
 class AppHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
@@ -711,8 +741,23 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
 
+    def do_GET(self):
+        if self.path == '/api/settings':
+            self.send_json_response(200, load_server_settings())
+        elif self.path == '/api/network-info':
+            local_ip = get_local_ip()
+            self.send_json_response(200, {
+                'ip': local_ip,
+                'port': PORT,
+                'url': f'http://{local_ip}:{PORT}'
+            })
+        else:
+            super().do_GET()
+
     def do_POST(self):
-        if self.path == '/api/send-email':
+        if self.path == '/api/settings':
+            self.handle_save_settings()
+        elif self.path == '/api/send-email':
             self.handle_send_email()
         elif self.path == '/api/test-smtp':
             self.handle_test_smtp()
@@ -722,6 +767,18 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_fill_questionnaire()
         else:
             self.send_error(404, "Endpoint not found")
+
+    def handle_save_settings(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode('utf-8'))
+            existing = load_server_settings()
+            existing.update(data)
+            save_server_settings(existing)
+            self.send_json_response(200, {'success': True})
+        except Exception as e:
+            self.send_json_response(500, {'success': False, 'error': str(e)})
 
     def handle_send_email(self):
         try:
@@ -932,10 +989,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
 def run():
     socketserver.TCPServer.allow_reuse_address = True
+    local_ip = get_local_ip()
     with socketserver.TCPServer(("", PORT), AppHandler) as httpd:
         print(f"====================================================")
         print(f" Business Card Scanner Server running at:")
-        print(f" http://localhost:{PORT}")
+        print(f" Local:   http://localhost:{PORT}")
+        print(f" Network: http://{local_ip}:{PORT}")
         print(f" Direct Gmail sending enabled (/api/send-email)")
         print(f"====================================================")
         try:
